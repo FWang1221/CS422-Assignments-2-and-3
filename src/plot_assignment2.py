@@ -1,4 +1,11 @@
-"""Generate Assignment 2 TCP-statistics plots from a completed run's CSV."""
+"""! @file plot_assignment2.py
+@brief Generate Assignment 2 sections 1(c) and 2(b) PDF visualizations.
+
+@details The module reads a run's raw sample CSV and produces time-series and
+scatter plots for every completed destination. This includes the representative
+destination required by section 2(b), while retaining all destinations for the
+section 1(c) throughput view.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +27,13 @@ def _number(row: dict[str, str], field: str) -> float | None:
 
 
 def _load_samples(samples_path: Path) -> dict[str, list[dict[str, str]]]:
+    """! @brief Read and validate the telemetry columns needed for plotting.
+
+    @param samples_path Run-specific `samples_<run_id>.csv` path.
+    @return CSV rows grouped by destination.
+    @throws FileNotFoundError If the requested run has no sample table.
+    @throws ValueError If required telemetry is missing or the table is empty.
+    """
     if not samples_path.exists():
         raise FileNotFoundError(f"sample table not found: {samples_path}")
     with samples_path.open(newline="", encoding="utf-8") as handle:
@@ -43,6 +57,16 @@ def _pairs(rows: list[dict[str, str]], x_field: str, y_field: str, x_scale: floa
 
 
 def _plot_pages(pdf: PdfPages, run_id: str, samples_by_destination: dict[str, list[dict[str, str]]]) -> None:
+    """! @brief Add required Assignment 2 visualization pages to a PDF.
+
+    @param pdf Open multi-page PDF destination.
+    @param run_id Identifier shown on each page.
+    @param samples_by_destination Valid samples grouped by destination.
+
+    @details Produces time series for congestion window, RTT, retransmission
+proxy, and acknowledged goodput plus the three required goodput scatter plots.
+`total_retransmits_delta` is used as the documented loss proxy.
+    """
     plot_specs = (
         ("Time series: congestion window", "elapsed_s", "snd_cwnd_bytes", "Elapsed time (s)", "Congestion window (KiB)", 1.0, 1024.0, "line"),
         ("Time series: RTT", "elapsed_s", "srtt_us", "Elapsed time (s)", "Smoothed RTT (ms)", 1.0, 1_000.0, "line"),
@@ -73,7 +97,16 @@ def _plot_pages(pdf: PdfPages, run_id: str, samples_by_destination: dict[str, li
 
 
 def generate_run_plots(run_id: str, tables_directory: Path = Path("outputs/tables"), output_directory: Path = Path("outputs/plots")) -> Path:
-    """Create the required time-series and scatter PDF plots for one run."""
+    """! @brief Create the required time-series and scatter plots for one run.
+
+    @param run_id Full run ID or timestamp token after the `step1-` prefix.
+    @param tables_directory Directory containing experiment CSV tables.
+    @param output_directory Directory receiving the generated PDF.
+    @return Path to `plots_<resolved-run-id>.pdf`.
+
+    @todo Section 2(c) observations belong in the report; this generator does
+not infer or write conclusions from the plotted data.
+    """
     candidate_run_ids = (run_id,) if run_id.startswith("step1-") else (run_id, f"step1-{run_id}")
     resolved_run_id = next(
         (candidate for candidate in candidate_run_ids if (tables_directory / f"samples_{candidate}.csv").exists()),

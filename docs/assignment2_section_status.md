@@ -1,0 +1,20 @@
+# Assignment 2 Sections 1-2 Status
+
+This status is a documentation map for the current implementation. It does not
+claim completion for later report or comparison work.
+
+| Section | Current implementation | Follow-up |
+| --- | --- | --- |
+| 1(a) iPerf client | `src/iperf3_protocol.py` and `LinuxIperf3Client` establish the control/data sockets, exchange parameters, continuously send forward TCP data, and terminate the iperf3 protocol. | None for the required one-stream forward client. |
+| 1(b) destinations | `run_step1_experiment` records selected endpoints and attempts, replaces failures within `max_attempts`, and writes the shortfall. | None for one experiment. Repetitions belong to later automation. |
+| 1(c) goodput | `_sample` uses acknowledged-byte deltas and actual elapsed intervals; summary CSV provides minimum, median, mean, and 95th-percentile goodput. `plot_assignment2.py` provides time series. | Integrate experiment and plotting in the final single entry-point pipeline. |
+| 2(a) TCP tracing | `src/tcp_info.py` reads the data socket and `assignment2_step1.py` logs timestamp, CUBIC/default algorithm, congestion window, RTT, loss proxy, goodput, units, and Linux decoding metadata. | None for default-algorithm tracing. |
+| 2(b) plots | `src/plot_assignment2.py` generates a PDF with the four required time series and three required scatter plots. | Select and identify one representative destination in the report. |
+| 2(c) observations | No report observations have been written yet. | Explain each metric, its expected effect during congestion avoidance, and anomalies from the selected trace. |
+
+## Out Of Scope For These Sections
+
+Question 3 still needs data-socket selection and verification of CUBIC, Reno,
+and BBR; repeated comparable experiments; and multi-algorithm visualizations.
+The final reproducibility work still needs a unified entry-point script,
+Dockerfile based on `ubuntu:24.04`, host-kernel recording, and report assembly.

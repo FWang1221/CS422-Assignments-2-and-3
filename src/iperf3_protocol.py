@@ -1,6 +1,9 @@
-"""Minimal iperf3 control-channel primitives for the TCP test client.
+"""! @file iperf3_protocol.py
+@brief Framed control-channel primitives for Assignment 2 section 1(a).
 
-State values match the upstream iperf3 `src/iperf_api.h` protocol constants.
+@details State values match upstream iperf3 `src/iperf_api.h`. These helpers
+keep the live client compatible with standard public iperf3 servers without
+invoking the iperf3 binary.
 """
 
 from __future__ import annotations
@@ -49,11 +52,21 @@ class IperfServerError(IperfProtocolError):
 
 
 def make_cookie() -> bytes:
-    """Return a 36-character ASCII token followed by the required NUL byte."""
+    """! @brief Create the fixed-size cookie required on each iperf3 connection.
+
+    @return A 36-character ASCII token followed by a NUL byte (`COOKIE_SIZE`).
+    """
     return secrets.token_hex(18).encode("ascii") + b"\x00"
 
 
 def recv_exact(socket: SocketLike, size: int) -> bytes:
+    """! @brief Read exactly one protocol frame fragment from a stream socket.
+
+    @param socket Control socket or socket-compatible test double.
+    @param size Required byte count.
+    @return Exactly `size` bytes.
+    @throws IperfProtocolError If the peer closes the connection prematurely.
+    """
     chunks = bytearray()
     while len(chunks) < size:
         chunk = socket.recv(size - len(chunks))
@@ -64,6 +77,12 @@ def recv_exact(socket: SocketLike, size: int) -> bytes:
 
 
 def send_json(socket: SocketLike, value: dict[str, Any]) -> None:
+    """! @brief Send a length-prefixed JSON control message.
+
+    @param socket Connected iperf3 control socket.
+    @param value JSON object for parameter or result exchange.
+    @throws ValueError If the encoded message is empty or exceeds the safety cap.
+    """
     encoded = json.dumps(value, separators=(",", ":")).encode("utf-8")
     if not encoded or len(encoded) > MAX_JSON_SIZE:
         raise ValueError("JSON control message has an invalid size")
@@ -71,6 +90,13 @@ def send_json(socket: SocketLike, value: dict[str, Any]) -> None:
 
 
 def recv_json(socket: SocketLike, max_size: int = MAX_JSON_SIZE) -> dict[str, Any]:
+    """! @brief Receive and validate one length-prefixed JSON control message.
+
+    @param socket Connected iperf3 control socket.
+    @param max_size Maximum accepted payload length in bytes.
+    @return Decoded JSON object.
+    @throws IperfProtocolError For malformed framing, JSON, or payload shape.
+    """
     size = struct.unpack("!I", recv_exact(socket, 4))[0]
     if size == 0 or size > max_size:
         raise IperfProtocolError(f"invalid JSON control message size: {size}")
@@ -84,6 +110,14 @@ def recv_json(socket: SocketLike, max_size: int = MAX_JSON_SIZE) -> dict[str, An
 
 
 def decode_state(state_bytes: bytes, socket: SocketLike | None = None) -> int:
+    """! @brief Decode one signed iperf3 state byte and raise known failures.
+
+    @param state_bytes One signed control-state byte.
+    @param socket Control socket used to read extended server errors.
+    @return A non-error protocol state.
+    @throws IperfAccessDenied If the public server rejects the request.
+    @throws IperfServerError If the server reports a protocol/system error.
+    """
     if len(state_bytes) != 1:
         raise IperfProtocolError("control state must be exactly one byte")
     state = struct.unpack("b", state_bytes)[0]

@@ -1,8 +1,9 @@
-"""Linux TCP_INFO decoding used by Assignment 2 measurements.
+"""! @file tcp_info.py
+@brief Linux data-socket telemetry decoder for Assignment 2 sections 1(c) and 2(a).
 
-The core layout through `tcpi_bytes_acked` is available in Linux 4.9+. Newer
-kernels append pacing and delivery-rate fields; unavailable appended fields are
-represented as ``None`` rather than guessed.
+@details The core layout through `tcpi_bytes_acked` is available in Linux 4.9+.
+Newer kernels append pacing and delivery-rate fields; unavailable appended fields
+are represented as ``None`` rather than guessed.
 """
 
 from __future__ import annotations
@@ -17,6 +18,13 @@ TCP_INFO_MIN_SIZE = 128
 
 @dataclass(frozen=True)
 class TcpInfo:
+    """! @brief Decoded subset of Linux `struct tcp_info` with native units.
+
+    @details RTT values are microseconds, congestion window is TCP segments,
+    byte counters are bytes, and rate values are bytes per second. Conversion to
+    CSV/report units occurs in the live client.
+    """
+
     bytes_acked: int
     snd_cwnd_segments: int
     rtt_us: int
@@ -30,6 +38,15 @@ class TcpInfo:
 
 
 def decode_tcp_info(raw: bytes) -> TcpInfo:
+    """! @brief Decode measured fields from a Linux `struct tcp_info` buffer.
+
+    @param raw Raw bytes returned by `getsockopt(TCP_INFO)`.
+    @return Supported core and optional appended metrics.
+    @throws ValueError If the buffer lacks the 128-byte core layout.
+
+    @details Field offsets and interval calculations are documented in
+`docs/tcp_info_measurement_schema.md` for Assignment 2 section 2(a).
+    """
     if len(raw) < TCP_INFO_MIN_SIZE:
         raise ValueError(f"TCP_INFO buffer is too short: expected at least {TCP_INFO_MIN_SIZE} bytes")
     return TcpInfo(
@@ -47,6 +64,12 @@ def decode_tcp_info(raw: bytes) -> TcpInfo:
 
 
 def get_tcp_info(data_socket: socket.socket) -> TcpInfo:
+    """! @brief Read and decode TCP_INFO from the live iperf3 data socket.
+
+    @param data_socket Connected TCP data socket, never the control socket.
+    @return Decoded TCP telemetry snapshot.
+    @throws OSError If the host lacks Linux `TCP_INFO` support.
+    """
     tcp_info_option = getattr(socket, "TCP_INFO", None)
     if tcp_info_option is None:
         raise OSError("TCP_INFO is unavailable; run the live experiment on Linux or WSL2")
@@ -55,7 +78,12 @@ def get_tcp_info(data_socket: socket.socket) -> TcpInfo:
 
 
 def get_congestion_algorithm(data_socket: socket.socket) -> str:
-    """Return the kernel-confirmed congestion-control algorithm for a socket."""
+    """! @brief Return the kernel-confirmed congestion-control algorithm.
+
+    @param data_socket Connected TCP data socket.
+    @return NUL-stripped algorithm name reported by `TCP_CONGESTION`.
+    @throws OSError If `TCP_CONGESTION` is unavailable or empty.
+    """
     tcp_congestion_option = getattr(socket, "TCP_CONGESTION", None)
     if tcp_congestion_option is None:
         raise OSError("TCP_CONGESTION is unavailable; run the live experiment on Linux or WSL2")

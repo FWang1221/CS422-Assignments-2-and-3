@@ -1,7 +1,13 @@
-"""Assignment 2, Question 1: live iperf3 transfer and goodput collection.
+"""! @file assignment2_step1.py
+@brief Live implementation for Assignment 2 sections 1(a-c) and 2(a).
 
-The live client is intended for Linux or WSL2. It uses a standard iperf3 server
-and does not invoke the iperf3 binary or operate a custom receiver.
+@details The client implements a forward TCP iperf3-compatible test against
+public servers without invoking the iperf3 binary or running a custom receiver.
+It selects replacement destinations, measures acknowledged goodput from the data
+socket, and writes the raw telemetry consumed by the plotting module.
+
+@todo Assignment 3(a) must add per-socket congestion-control selection for
+CUBIC, Reno, and BBR plus repeated, controlled experiment scheduling.
 """
 
 from __future__ import annotations
@@ -96,6 +102,13 @@ DEBUG_ENDPOINTS = [
 
 @dataclass(frozen=True)
 class LiveRunResult:
+    """! @brief Outcome of one attempted public-server transfer.
+
+    @details A failed attempt has no samples and carries a normalized failure
+    reason. A completed attempt carries data-socket telemetry and the congestion
+    algorithm that the Linux kernel actually selected.
+    """
+
     endpoint: Endpoint
     status: str
     samples: list[dict[str, object]]
@@ -104,11 +117,19 @@ class LiveRunResult:
 
 
 class Step1Client(Protocol):
+    """! @brief Injectable client boundary used by the experiment coordinator."""
+
     def run(self, endpoint: Endpoint, run_id: str, duration_s: float, sample_interval_s: float) -> LiveRunResult: ...
 
 
 class LinuxIperf3Client:
-    """One-stream, forward TCP iperf3 client with periodic data-socket samples."""
+    """! @brief One-stream forward TCP client compatible with public iperf3 servers.
+
+    @details Implements Assignment 2 section 1(a): control connection, JSON
+    parameter exchange, data connection, continuous transfer, and orderly
+    protocol termination. During sending it captures data-socket telemetry for
+    sections 1(c) and 2(a).
+    """
 
     def __init__(self, *, timeout_s: float = 10.0, block_size: int = 128 * 1024) -> None:
         if timeout_s <= 0 or block_size <= 0:
@@ -117,6 +138,12 @@ class LinuxIperf3Client:
         self.block_size = block_size
 
     def _connect(self, endpoint: Endpoint) -> socket.socket:
+        """! @brief Open one timeout-bound TCP connection to an endpoint.
+
+        @param endpoint Destination host and port from the public-server list.
+        @return A connected socket with the configured timeout.
+        @throws OSError If DNS lookup or TCP connection establishment fails.
+        """
         LOGGER.debug("connecting to %s:%s", endpoint.host, endpoint.port)
         connection = socket.create_connection((endpoint.host, endpoint.port), self.timeout_s)
         connection.settimeout(self.timeout_s)
@@ -129,6 +156,11 @@ class LinuxIperf3Client:
             raise IperfProtocolError(f"expected state {expected}, received {actual}")
 
     def _parameters(self, duration_s: float) -> dict[str, Any]:
+        """! @brief Build the iperf3 JSON parameters for a forward TCP stream.
+
+        @param duration_s Requested continuous-send duration in seconds.
+        @return The protocol parameter object sent during `PARAM_EXCHANGE`.
+        """
         return {
             "tcp": True,
             "omit": 0,
@@ -154,6 +186,23 @@ class LinuxIperf3Client:
         requested_algorithm: str = "system-default",
         actual_algorithm: str = "unknown",
     ) -> dict[str, object]:
+        """! @brief Convert a TCP_INFO snapshot into one CSV-ready measurement.
+
+        @param elapsed_s Monotonic seconds since data transfer started.
+        @param info Decoded Linux TCP_INFO snapshot from the data socket.
+        @param previous_elapsed_s Prior sample time, if any.
+        @param previous_bytes_acked Prior cumulative acknowledged-byte counter.
+        @param previous_total_retransmits Prior cumulative retransmission count.
+        @param previous_lost Prior non-monotonic current-loss estimate.
+        @return A sample with acknowledged goodput, congestion metrics, units,
+        and counter-change diagnostics.
+
+        @details Implements Assignment 2 section 1(c) with
+        `acknowledged_bytes_delta * 8 / interval_s`. It also implements section
+        2(a) by retaining TCP_INFO values and using `total_retransmits_delta` as
+        the cumulative loss/retransmission proxy. `lost_change` is signed because
+        `tcpi_lost` is an estimate rather than a cumulative counter.
+        """
         interval_s = None if previous_elapsed_s is None else elapsed_s - previous_elapsed_s
         goodput_bps: float | None = None
         acknowledged_bytes_delta: int | None = None
@@ -202,6 +251,18 @@ class LinuxIperf3Client:
         }
 
     def run(self, endpoint: Endpoint, run_id: str, duration_s: float, sample_interval_s: float) -> LiveRunResult:
+        """! @brief Execute one complete live public-server experiment attempt.
+
+        @param endpoint Server selected for this attempt.
+        @param run_id Identifier shared by all output rows from the experiment.
+        @param duration_s Requested continuous transfer duration in seconds.
+        @param sample_interval_s Requested TCP_INFO sampling interval in seconds.
+        @return Completed telemetry or a normalized failed attempt result.
+
+        @details The data socket, not the iperf3 control socket, supplies both
+        acknowledged-byte and TCP_INFO measurements required by sections 1(c)
+        and 2(a). `TCP_CONGESTION` records the actual selected algorithm.
+        """
         if duration_s <= 0 or sample_interval_s <= 0:
             raise ValueError("duration and sample interval must be positive")
         control_socket: socket.socket | None = None
@@ -379,6 +440,22 @@ def run_step1_experiment(
     algorithm: str = "system-default",
     debug: bool = False,
 ) -> dict[str, object]:
+    """! @brief Coordinate random-server attempts and write Assignment 2 tables.
+
+    @param output_dir Directory receiving selected-endpoint, attempt, sample,
+    summary, and metadata artifacts.
+    @param destinations Required count of completed destinations.
+    @param candidates Bounded ordered candidates selected from the server list.
+    @param max_attempts Total attempt cap, including failed replacements.
+    @param workers Maximum concurrent independent endpoint attempts.
+    @return Metadata including the requested/completed count, shortfall, units,
+    and actual congestion-control algorithms.
+
+    @details Implements section 1(b) by recording selections, failures, bounded
+    replacements, and shortfall. It implements section 1(c) by writing per-run
+    throughput summaries, and section 2(a) by preserving raw telemetry with its
+    decoding/units metadata. File writes are serialized with `FILE_LOCK`.
+    """
     if destinations <= 0 or max_attempts <= 0 or workers <= 0:
         raise ValueError("destinations, max attempts, and workers must be positive")
     run_started_at_utc = datetime.now(timezone.utc).isoformat()
