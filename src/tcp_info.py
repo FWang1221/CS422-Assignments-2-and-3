@@ -77,6 +77,26 @@ def get_tcp_info(data_socket: socket.socket) -> TcpInfo:
     return decode_tcp_info(raw)
 
 
+def configure_congestion_algorithm(data_socket: socket.socket, algorithm: str) -> None:
+    """! @brief Request a Linux congestion-control algorithm before connect.
+
+    @param data_socket Unconnected TCP data socket.
+    @param algorithm Linux `TCP_CONGESTION` algorithm name.
+    @throws OSError If TCP_CONGESTION is unavailable or the kernel rejects it.
+    @throws ValueError If the algorithm name is empty or not ASCII.
+    """
+    tcp_congestion_option = getattr(socket, "TCP_CONGESTION", None)
+    if tcp_congestion_option is None:
+        raise OSError("TCP_CONGESTION is unavailable; run the live experiment on Linux or WSL2")
+    try:
+        encoded_algorithm = algorithm.encode("ascii")
+    except UnicodeEncodeError as error:
+        raise ValueError("TCP congestion-control algorithm names must be ASCII") from error
+    if not encoded_algorithm:
+        raise ValueError("TCP congestion-control algorithm name must not be empty")
+    data_socket.setsockopt(socket.IPPROTO_TCP, tcp_congestion_option, encoded_algorithm)
+
+
 def get_congestion_algorithm(data_socket: socket.socket) -> str:
     """! @brief Return the kernel-confirmed congestion-control algorithm.
 

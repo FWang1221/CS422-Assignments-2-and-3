@@ -45,7 +45,7 @@ from src.iperf3_protocol import (
     send_state,
 )
 from src.simulated_client import Endpoint, load_endpoints, select_endpoints
-from src.tcp_info import TcpInfo, get_congestion_algorithm, get_tcp_info
+from src.tcp_info import TcpInfo, configure_congestion_algorithm, get_congestion_algorithm, get_tcp_info
 
 
 LOGGER = logging.getLogger(__name__)
@@ -114,6 +114,7 @@ class LiveRunResult:
     samples: list[dict[str, object]]
     failure_reason: str = ""
     actual_algorithm: str = "unknown"
+    requested_algorithm: str = "system-default"
 
 
 class Step1Client(Protocol):
@@ -131,13 +132,22 @@ class LinuxIperf3Client:
     sections 1(c) and 2(a).
     """
 
-    def __init__(self, *, timeout_s: float = 10.0, block_size: int = 128 * 1024) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_s: float = 10.0,
+        block_size: int = 128 * 1024,
+        congestion_algorithm: str | None = None,
+        requested_algorithm: str | None = None,
+    ) -> None:
         if timeout_s <= 0 or block_size <= 0:
             raise ValueError("timeout and block size must be positive")
         self.timeout_s = timeout_s
         self.block_size = block_size
+        self.congestion_algorithm = congestion_algorithm
+        self.requested_algorithm = requested_algorithm or congestion_algorithm or "system-default"
 
-    def _connect(self, endpoint: Endpoint) -> socket.socket:
+    def _connect(self, endpoint: Endpoint, congestion_algorithm: str | None = None) -> socket.socket:
         """! @brief Open one timeout-bound TCP connection to an endpoint.
 
         @param endpoint Destination host and port from the public-server list.
@@ -145,9 +155,25 @@ class LinuxIperf3Client:
         @throws OSError If DNS lookup or TCP connection establishment fails.
         """
         LOGGER.debug("connecting to %s:%s", endpoint.host, endpoint.port)
-        connection = socket.create_connection((endpoint.host, endpoint.port), self.timeout_s)
-        connection.settimeout(self.timeout_s)
-        return connection
+        if congestion_algorithm is None:
+            connection = socket.create_connection((endpoint.host, endpoint.port), self.timeout_s)
+            connection.settimeout(self.timeout_s)
+            return connection
+
+        last_error: OSError | None = None
+        for family, socket_type, protocol, _, address in socket.getaddrinfo(endpoint.host, endpoint.port, type=socket.SOCK_STREAM):
+            connection = socket.socket(family, socket_type, protocol)
+            try:
+                connection.settimeout(self.timeout_s)
+                configure_congestion_algorithm(connection, congestion_algorithm)
+                connection.connect(address)
+                return connection
+            except OSError as error:
+                connection.close()
+                last_error = error
+        if last_error is not None:
+            raise last_error
+        raise OSError(f"no TCP addresses found for {endpoint.host}:{endpoint.port}")
 
     @staticmethod
     def _expect_state(control_socket: socket.socket, expected: int) -> None:
@@ -277,11 +303,15 @@ class LinuxIperf3Client:
             send_json(control_socket, self._parameters(duration_s))
             self._expect_state(control_socket, CREATE_STREAMS)
 
-            data_socket = self._connect(endpoint)
+            data_socket = self._connect(endpoint, self.congestion_algorithm)
             data_socket.sendall(cookie)
             self._expect_state(control_socket, TEST_START)
             self._expect_state(control_socket, TEST_RUNNING)
             actual_algorithm = get_congestion_algorithm(data_socket)
+            if self.congestion_algorithm is not None and actual_algorithm != self.congestion_algorithm:
+                raise IperfProtocolError(
+                    f"requested congestion control {self.congestion_algorithm!r}, kernel selected {actual_algorithm!r}"
+                )
             LOGGER.debug("data socket for %s:%s uses %s", endpoint.host, endpoint.port, actual_algorithm)
 
             data_socket.setblocking(False)
@@ -312,6 +342,7 @@ class LinuxIperf3Client:
                         previous_total_retransmits,
                         previous_lost,
                         start_timestamp_utc + timedelta(seconds=elapsed_s),
+                        requested_algorithm=self.requested_algorithm,
                         actual_algorithm=actual_algorithm,
                     )
                     samples.append(sample)
@@ -355,6 +386,7 @@ class LinuxIperf3Client:
                         previous_total_retransmits,
                         previous_lost,
                         start_timestamp_utc + timedelta(seconds=final_elapsed_s),
+                        requested_algorithm=self.requested_algorithm,
                         actual_algorithm=actual_algorithm,
                     )
                 )
@@ -388,7 +420,13 @@ class LinuxIperf3Client:
             self._expect_state(control_socket, DISPLAY_RESULTS)
             send_state(control_socket, IPERF_DONE)
             LOGGER.debug("completed run %s for %s:%s", run_id, endpoint.host, endpoint.port)
-            return LiveRunResult(endpoint, "completed", samples, actual_algorithm=actual_algorithm)
+            return LiveRunResult(
+                endpoint,
+                "completed",
+                samples,
+                actual_algorithm=actual_algorithm,
+                requested_algorithm=self.requested_algorithm,
+            )
         except (OSError, IperfProtocolError) as error:
             LOGGER.debug("failed run %s for %s:%s: %s", run_id, endpoint.host, endpoint.port, error)
             return LiveRunResult(endpoint, "failed", [], _failure_reason(error))

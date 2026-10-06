@@ -1,10 +1,26 @@
 import struct
 import unittest
+from unittest.mock import patch
 
-from src.tcp_info import decode_tcp_info
+from src.tcp_info import configure_congestion_algorithm, decode_tcp_info
+
+
+class RecordingSocket:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, int, bytes]] = []
+
+    def setsockopt(self, level: int, option: int, value: bytes) -> None:
+        self.calls.append((level, option, value))
 
 
 class TcpInfoTests(unittest.TestCase):
+    def test_configures_a_named_algorithm_before_connect(self) -> None:
+        data_socket = RecordingSocket()
+        with patch("src.tcp_info.socket.TCP_CONGESTION", 42, create=True):
+            configure_congestion_algorithm(data_socket, "reno")
+
+        self.assertEqual(data_socket.calls, [(6, 42, b"reno")])
+
     def test_decodes_linux_tcp_info_fields_used_by_assignment_one(self) -> None:
         raw = bytearray(168)
         struct.pack_into("=I", raw, 32, 7)  # tcpi_lost

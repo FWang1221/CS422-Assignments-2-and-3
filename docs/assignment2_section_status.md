@@ -14,7 +14,20 @@ claim completion for later report or comparison work.
 
 ## Out Of Scope For These Sections
 
-Question 3 still needs data-socket selection and verification of CUBIC, Reno,
-and BBR; repeated comparable experiments; and multi-algorithm visualizations.
+## Question 3(a) Foundation
+
+`src/assignment2_question3.py` accepts one or many `--algorithms` values from
+`CUBIC`, `Reno`, `BBR`, and `Hand-Written`. It reuses an explicit successful
+endpoint plan, rotates algorithm order across repetitions, sets the requested
+algorithm on the unconnected data socket, verifies the kernel-selected value,
+and writes a comparison manifest. Failed or unavailable algorithms are recorded
+without replacing destinations.
+
+`Hand-Written` reserves the future Linux module name `cs422_handwrite`; it will
+remain unavailable until Question 3(b)/Assignment 3 supplies and loads it.
+`src/plot_assignment2_question3.py` generates the required seven shared-axis
+comparison views for one representative destination. Operating-regime
+interpretation and report discussion remain TODOs.
+
 The final reproducibility work still needs a unified entry-point script,
 Dockerfile based on `ubuntu:24.04`, host-kernel recording, and report assembly.
