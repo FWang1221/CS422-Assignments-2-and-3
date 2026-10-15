@@ -1,28 +1,36 @@
 - (Assignment2: 3b) **Design a hand-written algorithm.** Using your measurements, design a congestion control algorithm and write pseudocode specifying how it updates the congestion window based on RTT, packet-loss estimates or a loss proxy, and throughput. Explain your design choices. Discuss whether competing flows using your algorithm are expected to share bandwidth fairly and whether their sending rates converge to a stable operating point. State your assumptions and explain any expected limitations.
 
 
-General Overview: It's AIMD but instead of packet loss determining scale bakc, we check a moving median RTT of the last 7 (arbitrary magic number chosen) or so samples and compare it to goodput. If the ratio is getting worse, we scale back slightly. For dealing with retransmission spikes, we need pacing prediction to enforce smooth packet transmission schedule based on estimated bottleneck bandwidth, rather than dumping packets in bursts.
+General Overview: A delay-sensitive AIMD controller uses a moving median of the last 7 valid RTT samples and round-level goodput to estimate queue buildup. It can reduce the window before packet loss, while retaining immediate Linux loss recovery as a failsafe. Linux's native pacing machinery schedules transmission rather than a private queue or timer.
 
 
-Rationale: In order to make it so that the network pipe doesn't just fill up the router buffer uselessly, we check RTT, and to deal with high jitter, a moving median sampler is used. We pace ourselves to not fall into a retransmission spike based on estimating a safe bottleneck bandwidth.
+Rationale: RTT inflation and a throughput-based queue estimate provide early warning of buffer buildup. A moving median reduces sensitivity to RTT outliers, and round-level decisions avoid reacting repeatedly to feedback from the same flight of packets. Native pacing can reduce bursts but does not guarantee the absence of loss or measure the bottleneck bandwidth directly.
 
 
-Fairness:
+Fairness and stability hypotheses:
 
-This algorithm is fair when everyone else uses it. Multiple flows with this algorithm competing on the same link will all converge to a stable and fair operating point, due to measuring the same RTT inflation, the queue buildup, simultaneously, they back off symmetrically, and prevent wild oscillations.
+Flows using this algorithm may approach similar sending rates when they share a bottleneck and have comparable propagation RTTs and start times. This is an expectation, not a guarantee of fairness or convergence. Different RTTs, delayed or compressed ACKs, late-arriving flows, and inaccurate base RTT estimates can produce unequal shares or oscillations. Round-based decisions and the gap between the two thresholds reduce sensitivity to individual ACKs but do not prove stability.
 
-This algorithm will be starved against standard TCP CUBIC. It will not share bandwidth fairly. CUBIC ignores RTT inflation and keeps pushing until a packet drops. The algorithm here backs off when detecting delay, when faced with algorithm like CUBIC, which will happily stab us in the back for our magnanimity, aggressively consuming bandwidth our algorithm yields, it leads us to starvation. However, this algorithm is meant for optimizing for our current scenario, and isn't a generalized congestion control algorithm like CUBIC is.
+Against loss-based TCP CUBIC, this delay-sensitive algorithm may yield bandwidth before CUBIC reduces its window and may receive a much smaller share. Starvation is a risk, not an established result. Fairness and stability claims require competing-flow measurements; separate public-server runs alone cannot establish either.
 
 
 Control Flow:
 
 1. Initialization:
 
-Init standard TCP params: Congestion Window (cwnd), Slow Start Threshold (ssthresh), bytes in flight. Circular buffer stores last 7 RTT samples. Initialize a pacing_rate variable, in bytes/ms.
+Retain Linux's initial congestion window and slow-start threshold rather than forcing a window of 10 segments. Use the kernel's slow-start helper to grow the window with acknowledged data when cwnd-limited. A circular buffer stores the last 7 valid positive RTT samples. Initially there is no valid base RTT or active measurement round.
+
+During slow start, evaluate eligible measurement rounds for early delay exit. If diff exceeds 6 packets, reduce cwnd by the 0.8 factor and set ssthresh to the resulting window, entering congestion avoidance. Otherwise retain normal slow-start growth; do not also apply the congestion-avoidance increase of one segment per round. Loss may end slow start independently through Linux recovery. The round-start window is used for the queue estimate even if slow start grew the window during that round; this can delay congestion detection and is a startup limitation.
+
+Bounds apply to our own window updates: clamp cwnd between 2 segments and Linux's snd_cwnd_clamp, assuming the clamp is at least 2. Never raise a stricter kernel clamp. Loss-driven ssthresh has a minimum of 2 segments. Linux may temporarily use a smaller window, including 1 segment after a retransmission timeout; do not override that recovery behavior.
 
 2. ACK Processing: Collect feedback continuously:
 
 When an ACK supplies a valid RTT measurement, push it into the 7-sample circular buffer and calculate the moving median. Accumulate newly acknowledged bytes throughout each TCP round. A round ends when ACKs cover the data outstanding at its start, approximately one RTT later during continuous sending. At the round boundary, calculate goodput from the bytes acknowledged during the round and its actual elapsed time.
+
+Use all available samples until the history contains 7; for an even sample count, use the lower middle value. Invalid or nonpositive RTT measurements do not enter the history. Track base_rtt as the minimum valid moving median over the connection's lifetime, not the minimum raw RTT. Before the first valid RTT, use Linux's ordinary startup/growth and pacing behavior without a delay decision. Skip a round's delay decision if no new valid RTT arrived during that round, or if base RTT, median RTT, MSS, or round elapsed time is nonpositive. Keep collecting feedback so the controller can resume on a fresh valid round.
+
+Skip delay-based window changes for a round marked application-limited by Linux's delivery accounting, or where the sender was not cwnd-limited. Such a round's low goodput may reflect insufficient application data or another sending constraint, not queue buildup. Discard its throughput accumulation and begin a fresh measurement round with new data. RTT history may still be updated; do not increase or decrease cwnd from that round's queue estimate. Keep Linux's normal cwnd-limited check on slow-start growth as well.
 
 3. Congestion Decision System: Make one delay-based decision per TCP round:
 
@@ -40,22 +48,20 @@ Packet Loss State:
 
 Linux TCP handles loss detection and recovery immediately, without waiting for the round boundary. For a loss-driven threshold reduction, request half the current congestion window, with a minimum of 2 segments; Linux determines the recovery window and timeout behavior. Discard the partial round's delay-control measurements when recovery starts, and begin a fresh measurement round when normal congestion avoidance resumes. Do not apply a delay-based reduction during recovery.
 
-4. Pacing Rate Calculation:
+4. Linux Pacing:
 
-After adjusting cwnd, calculate new safe transmission speed. pacing_rate = cwnd / moving_median_RTT. This gives us our bottleneck bandwidth in bytes/ms, preventing the client from sending faster than the network can drain.
+Use Linux TCP's existing pacing-rate calculation and packet scheduler rather than setting a custom median-RTT rate. With the cong_avoid callback path, Linux retains responsibility for pacing updates. Its rate calculation uses MSS, the congestion window/in-flight data, smoothed RTT, configured pacing ratios, and the socket's maximum pacing rate. Rates are in bytes per second; RTT conversion must be explicit if inspecting or logging the calculation.
 
-5. Transmission Timer, Pacing The Sends:
+The moving median remains an input to delay control, while Linux's smoothed RTT is used for native pacing. This is an intentional change from the original cwnd / median_rtt formula. A window-derived pacing rate is not a direct measurement of bottleneck bandwidth.
 
-Decouple sending of packets from arrival of ACKs.
+Do not implement a private transmission timer or packet queue. Request pacing through Linux's supported socket pacing mechanism when implementing the controller, and use Linux TCP's internal pacing or an appropriate pacing-aware qdisc such as fq. Verify actual pacing behavior and record the qdisc and pacing configuration for the experiment; the qdisc alone is not proof of smooth transmission.
 
-Rather than dumping all alloweed cwnd packets onto the wire the moment an ACK arrives, causing micro bursts and massive retransmission spikes, hand the packets to a pacing queue.
-
-A high-resolution timer dispatches packets from this queue strictly at the calculated pacing_rate, ensuring a smooth flow of traffic.
+Apply the same documented network setup to all comparison algorithms. The registration scaffold does not change qdiscs, global pacing settings, or implement the custom controller.
 
 
 Assumptions:
 
-The minimum measured RTT, base_rtt, accurately reflects the physical propagation delay of an empty network path.
+The minimum observed moving-median RTT, base_rtt, approximates the empty-path RTT. Persistent queues during measurement can bias it upward.
 
 The bottleneck router has enough buffer space to allow RTT to inflat esmoothly so we can detect congestion before a drop occurs.
 
@@ -68,11 +74,23 @@ Route changes, such as traffic being shifted to a longer physical fiber path, wi
 Pseudocode segment:
 
 Initialize:
-    cwnd = 10
-    base_rtt = infinity
+    retain_linux_initial_cwnd_and_ssthresh()
+    base_rtt = unavailable
     rtt_history = Array(size 7)
     threshold_alpha = 3 // Threshold for scaling up
     threshold_beta = 6  // Threshold for scaling down
+    minimum_controller_cwnd = 2
+    enable_linux_native_pacing()
+    begin_measurement_round_when_data_is_outstanding()
+
+On Linux congestion-avoidance callback:
+    if cwnd_limited():
+        if in_slow_start():
+            linux_slow_start_with_acked_data()
+        else if no_valid_rtt_has_ever_been_observed():
+            linux_reno_additive_increase()
+    // Do not also apply per-ACK additive growth once delay control is active.
+    // The ACK feedback and round-boundary logic below are coordinated with this.
 
 On ACK received (bytes_acked):
     if valid_rtt_measurement_available():
@@ -81,19 +99,29 @@ On ACK received (bytes_acked):
         median_rtt = get_median(rtt_history)
     
     // Track the absolute minimum delay (empty queue delay)
-    if median_rtt_is_available() and median_rtt < base_rtt:
+    if median_rtt_is_available() and (base_rtt_is_unavailable() or median_rtt < base_rtt):
         base_rtt = median_rtt
 
     // Loss recovery is handled by Linux independently of this round boundary.
-    if not in_normal_congestion_avoidance():
+    if in_linux_congestion_recovery():
         discard_partial_measurement_round()
         return
 
     if no_active_measurement_round():
         begin_round_with_current_window_and_outstanding_data()
+        // Baseline counters after this ACK; do not charge it to the new round.
+        return
 
     round_bytes_acked += bytes_acked
+    track_round_rtt_validity_and_application_limitation()
     if not round_complete():
+        return
+
+    if round_is_application_limited() or not round_was_cwnd_limited():
+        discard_and_restart_measurement_round()
+        return
+    if not round_has_fresh_valid_rtt() or not valid_positive(base_rtt, median_rtt, MSS, round_elapsed_time):
+        discard_and_restart_measurement_round()
         return
 
     // Use consistent packet units; RTT and elapsed time use the same units.
@@ -104,23 +132,29 @@ On ACK received (bytes_acked):
     // Diff estimates queued packets; it is not a direct queue measurement.
     diff = max(0, (expected_goodput_packets - actual_goodput_packets) * base_rtt)
 
-    if diff < threshold_alpha:
+    if in_slow_start():
+        if diff > threshold_beta:
+            cwnd = clamp_to_controller_bounds(floor(cwnd * 0.8))
+            ssthresh = cwnd
+    else if diff < threshold_alpha:
         // Safe Zone: One additive increase per round
-        cwnd = cwnd + 1
+        cwnd = clamp_to_controller_bounds(cwnd + 1)
     else if diff > threshold_beta:
         // Buffer Zone: At most one delay-based backoff per round
-        cwnd = max(2, floor(cwnd * 0.8))
+        cwnd = clamp_to_controller_bounds(floor(cwnd * 0.8))
         ssthresh = cwnd
 
     begin_next_measurement_round()
 
-    // Enforce pacing
-    pacing_rate = cwnd / median_rtt
-    set_timer(pacing_rate)
+    // Linux TCP updates its native pacing rate; no custom queue or timer.
 
 On Linux loss-driven ssthresh callback:
     return max(2, floor(cwnd / 2))
 
 Design change from the original pseudocode:
 
-ACKs still update feedback continuously, but delay-based window decisions now occur once per TCP round rather than once per ACK. Goodput is measured over the round, additive growth is one segment per round, and the 0.8 delay backoff can occur at most once per round. Linux loss recovery remains immediate and takes priority over delay control. Startup, missing RTT samples, application-limited rounds, and the Linux pacing interface still need to be specified before implementation.
+ACKs still update feedback continuously, but delay-based window decisions now occur once per TCP round rather than once per ACK. Goodput is measured over the round, additive growth is one segment per round, and the 0.8 delay backoff can occur at most once per round. Linux loss recovery remains immediate and takes priority over delay control. Startup uses Linux's initial window and slow start with a round-based early delay exit. Missing/stale RTT feedback and application-limited rounds cannot trigger delay decisions. Controller window updates honor explicit bounds. Native Linux pacing replaces the custom median-RTT pacing formula and transmission timer.
+
+Implementation status:
+
+cc/ebpf/cs422_scaffold.bpf.c only registers the name cs422_handwrite and delegates congestion avoidance, loss threshold, and undo behavior to Linux Reno. src/ebpf_smoke_test.py is a local load/register/select/transfer/detach integration check, not a public-server experiment. The scaffold does not implement the delay controller described above and must not be reported as handwritten-algorithm results.
