@@ -1,0 +1,39 @@
+General Overview: It's CUBIC but instead of packet loss determining scale bakc, we check a moving median RTT of the last 7 (arbitrary magic number chosen) or so samples and compare it to goodput. If the ratio is getting worse, we scale back slightly. For dealing with retransmission spikes, we need pacing prediction to pre-emptively not be in that sort of situation and slow it down.
+
+Rationale: In order to make it so that the network pipe doesn't just fill up the router buffer uselessly, we check RTT, and to deal with high jitter, a moving median sampler is used. We pace ourselves to not fall into a retransmission spike based on estimating a safe bottleneck bandwidth.
+
+Control Flow:
+
+1. Initialization:
+
+Init standard TCP params: Congestion Window (cwnd), Slow Start Threshold (ssthresh), bytes in flight. Circular buffer stores last 7 RTT samples. Initialize a pacing_rate variable, in bytes/ms.
+
+2. ACK Processing: When ACKs arrive, algorithm processes network feedback before adjusting the windows:
+
+Update the RTT history, pushing the newly measured RTT into the 7-sample circular buffer, calculating our moving median. We now calculate our latest goodput.
+
+3. Congestion Decision System:
+
+Safe Zone State: Goodput rises, RTT is stable:
+
+This means the network pipe is filling. Standard CUBIC growth goes here. We increase cwnd aggressively using a cubic function relative to the time since the last congestion event.
+
+Buffer Zone State: Goodput plateaus, RTT rises:
+
+This means the pipe is full and we are now filling the router's buffer, approaching the cliff. We scale back the cwnd by the backoff factor, such as 0.8 (arbitrary magic number), and update ssthresh. We don't wait for packet drops.
+
+Packet Loss State:
+
+If a packet is dropped (duplicate ACKs or timeout indicates this), fall back to the multiplicative decrease to clear the bottleneck.
+
+4. Pacing Rate Calculation:
+
+After adjusting cwnd, calculate new safe transmission speed. pacing_rate = cwnd / moving_median_RTT. This gives us our bottleneck bandwidth in bytes/ms, preventing the client from sending faster than the network can drain.
+
+5. Transmission Timer, Pacing The Sends:
+
+Decouple sending of packets from arrival of ACKs.
+
+Rather than dumping all alloweed cwnd packets onto the wire the moment an ACK arrives, causing micro bursts and massive retransmission spikes, hand the packets to a pacing queue.
+
+A high-resolution timer dispatches packets from this queue strictly at the calculated pacing_rate, ensuring a smooth flow of traffic.
