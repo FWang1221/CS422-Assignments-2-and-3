@@ -2,9 +2,9 @@
 @brief Congestion-control request normalization for Assignment 2 Question 3(a).
 
 @details Built-in names map to Linux `TCP_CONGESTION` values. `Hand-Written`
-reserves a stable kernel-module registration name for Assignment 2 Question 3(b)
-and Assignment 3; it remains unavailable until that algorithm is implemented and
-loaded by the host kernel.
+uses the TCP eBPF registration name for Assignment 2 Question 3(b) and
+Assignment 3; it remains unavailable until the custom object is loaded into
+the host kernel.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class CongestionAlgorithm:
 
     @param label Report-facing canonical algorithm label.
     @param kernel_name Value passed to `setsockopt(TCP_CONGESTION)`.
-    @param is_handwritten Whether this names the future custom kernel algorithm.
+    @param is_handwritten Whether this names the custom kernel algorithm.
     """
 
     label: str
@@ -41,7 +41,7 @@ def normalize_algorithms(requested: list[str], handwritten_kernel_name: str = CU
     """! @brief Normalize one or more user-requested comparison algorithms.
 
     @param requested Case-insensitive CLI algorithm names.
-    @param handwritten_kernel_name Reserved future custom Linux algorithm name.
+    @param handwritten_kernel_name Custom Linux algorithm registration name.
     @return Ordered, duplicate-free algorithm specifications.
     @throws ValueError For empty, unsupported, duplicate, or invalid requests.
     """

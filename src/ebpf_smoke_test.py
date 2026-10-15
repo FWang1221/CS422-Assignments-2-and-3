@@ -1,7 +1,6 @@
-"""Load, exercise, and detach the Reno-backed BPF registration scaffold.
+"""Load, exercise, and detach the custom TCP BPF controller or Reno scaffold.
 
-This is a local integration test, not an Assignment 3 experiment or an
-implementation of the handwritten congestion-control policy.
+This is a local integration test, not an Assignment 3 performance experiment.
 """
 
 from __future__ import annotations
@@ -24,6 +23,10 @@ from src.tcp_info import configure_congestion_algorithm, get_congestion_algorith
 
 
 AVAILABLE_ALGORITHMS = Path("/proc/sys/net/ipv4/tcp_available_congestion_control")
+IMPLEMENTATIONS = {
+    "cs422_scaffold.bpf.o": "reno-backed-registration-scaffold",
+    "cs422_handwrite.bpf.o": "delay-based-round-controller",
+}
 
 
 def available_algorithms() -> set[str]:
@@ -47,7 +50,7 @@ def check_environment(object_path: Path, bpffs: Path) -> None:
     if os.geteuid() != 0:
         raise PermissionError("BPF attachment requires privileges; run this smoke test with sudo")
     if not object_path.is_file():
-        raise FileNotFoundError(f"build the scaffold first; object not found: {object_path}")
+        raise FileNotFoundError(f"build the BPF object first; object not found: {object_path}")
     for command in ("bpftool", "findmnt"):
         if shutil.which(command) is None:
             raise RuntimeError(f"required command is not installed: {command}")
@@ -123,21 +126,29 @@ def exercise_socket() -> dict[str, int | str]:
                     time.sleep(0.01)
                 if final.snd_cwnd_segments <= 0:
                     raise RuntimeError("kernel reported a nonpositive congestion window")
-                return {
+                result: dict[str, int | str] = {
                     "actual_algorithm": actual,
                     "received_bytes": transferred,
                     "acknowledged_bytes_delta": acknowledged,
                     "snd_cwnd_segments": final.snd_cwnd_segments,
                     "rtt_us": final.rtt_us,
                 }
+                if final.pacing_rate_bytes_per_s is not None:
+                    result["pacing_rate_bytes_per_s"] = final.pacing_rate_bytes_per_s
+                return result
 
 
 def run_smoke_test(object_path: Path, bpffs: Path) -> dict[str, int | str]:
+    if object_path.name not in IMPLEMENTATIONS:
+        raise ValueError(f"expected one of these BPF object filenames: {', '.join(IMPLEMENTATIONS)}")
     with attached_scaffold(object_path, bpffs):
         result = exercise_socket()
+        if object_path.name == "cs422_handwrite.bpf.o":
+            if result.get("pacing_rate_bytes_per_s") in (None, 0, (1 << 64) - 1):
+                raise RuntimeError("custom controller did not report a finite positive Linux pacing rate")
     return {
         "status": "passed",
-        "implementation": "reno-backed-registration-scaffold",
+        "implementation": IMPLEMENTATIONS[object_path.name],
         "kernel": platform.release(),
         **result,
         "lifecycle": "loaded, registered, selected, transferred, detached",
@@ -146,7 +157,7 @@ def run_smoke_test(object_path: Path, bpffs: Path) -> dict[str, int | str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--object", type=Path, required=True, help="compiled cs422_scaffold.bpf.o")
+    parser.add_argument("--object", type=Path, required=True, help="compiled cs422_handwrite.bpf.o or cs422_scaffold.bpf.o")
     parser.add_argument("--bpffs", type=Path, default=Path("/sys/fs/bpf"))
     arguments = parser.parse_args()
     result = run_smoke_test(arguments.object.resolve(), arguments.bpffs.resolve())

@@ -30,7 +30,9 @@ When an ACK supplies a valid RTT measurement, push it into the 7-sample circular
 
 Use all available samples until the history contains 7; for an even sample count, use the lower middle value. Invalid or nonpositive RTT measurements do not enter the history. Track base_rtt as the minimum valid moving median over the connection's lifetime, not the minimum raw RTT. Before the first valid RTT, use Linux's ordinary startup/growth and pacing behavior without a delay decision. Skip a round's delay decision if no new valid RTT arrived during that round, or if base RTT, median RTT, MSS, or round elapsed time is nonpositive. Keep collecting feedback so the controller can resume on a fresh valid round.
 
-Skip delay-based window changes for a round marked application-limited by Linux's delivery accounting, or where the sender was not cwnd-limited. Such a round's low goodput may reflect insufficient application data or another sending constraint, not queue buildup. Discard its throughput accumulation and begin a fresh measurement round with new data. RTT history may still be updated; do not increase or decrease cwnd from that round's queue estimate. Keep Linux's normal cwnd-limited check on slow-start growth as well.
+Skip delay-based window changes for a round marked application-limited by Linux's delivery accounting, or where the sender was not cwnd-limited. The implementation conservatively marks a round ineligible if any observed ACK has app_limited or rate_app_limited set, or fails the cwnd-limited check. During slow start that check includes Linux's half-window utilization rule. Such a round's low goodput may reflect insufficient application data or another sending constraint, not queue buildup. Discard its throughput accumulation and begin a fresh measurement round with new data. RTT history may still be updated; do not increase or decrease cwnd from that round's queue estimate. Keep Linux's normal cwnd-limited check on slow-start growth as well.
+
+Implementation guards also skip delay decisions if MSS changes within a round, acknowledged bytes decrease, elapsed time exceeds 2^32-1 microseconds (about 71 minutes), or the byte delta exceeds 2^31-1. These bounds permit safe 64-bit integer cross products; they are not intended to limit a normal 10-second experiment. Fractional packet values are retained when comparing with the strict thresholds. ACK sequence boundaries use wrap-aware 32-bit comparisons.
 
 3. Congestion Decision System: Make one delay-based decision per TCP round:
 
@@ -56,7 +58,7 @@ The moving median remains an input to delay control, while Linux's smoothed RTT 
 
 Do not implement a private transmission timer or packet queue. Request pacing through Linux's supported socket pacing mechanism when implementing the controller, and use Linux TCP's internal pacing or an appropriate pacing-aware qdisc such as fq. Verify actual pacing behavior and record the qdisc and pacing configuration for the experiment; the qdisc alone is not proof of smooth transmission.
 
-Apply the same documented network setup to all comparison algorithms. The registration scaffold does not change qdiscs, global pacing settings, or implement the custom controller.
+Apply the same documented network setup to all comparison algorithms. The controller's init callback requests SK_PACING_NEEDED only if pacing is not already enabled. It does not change qdiscs or global pacing settings.
 
 
 Assumptions:
@@ -157,4 +159,8 @@ ACKs still update feedback continuously, but delay-based window decisions now oc
 
 Implementation status:
 
-cc/ebpf/cs422_scaffold.bpf.c only registers the name cs422_handwrite and delegates congestion avoidance, loss threshold, and undo behavior to Linux Reno. src/ebpf_smoke_test.py is a local load/register/select/transfer/detach integration check, not a public-server experiment. The scaffold does not implement the delay controller described above and must not be reported as handwritten-algorithm results.
+cc/ebpf/cs422_handwrite.bpf.c implements the custom policy using TCP eBPF struct_ops. cc/ebpf/cs422_controller.h contains the shared per-socket round and RTT logic, exercised directly by cc/ebpf/tests/test_controller.c. pkts_acked collects RTT, cong_avoid performs startup and round decisions, ssthresh requests loss backoff, set_state discards partial rounds in CWR/recovery/loss, and undo_cwnd restores the saved pre-loss window within the kernel clamp. Native Linux loss recovery controls temporary recovery windows and retransmissions.
+
+The original cc/ebpf/cs422_scaffold.bpf.c remains a separate Reno-backed baseline with the same registration name. Load only one object at a time and do not report scaffold results as handwritten-algorithm results. src/ebpf_smoke_test.py distinguishes the expected object filenames and tests local load/register/select/transfer/detach, including a finite pacing rate check for the custom object. It is not a public-server experiment or a proof of wire-level pacing.
+
+The original scaffold passed the privileged lifecycle test on kernel 6.18.54.1-microsoft-standard-WSL2. The new controller's privileged verifier/load test and controlled congestion/loss experiments remain separate validation steps. kernel_test_help.txt and cc/ebpf/README.md document commands, tests, event counters and reproduction requirements.

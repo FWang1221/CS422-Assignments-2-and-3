@@ -127,10 +127,12 @@ class BpfScaffoldLifecycleTests(unittest.TestCase):
                 patch("src.ebpf_smoke_test.check_environment"),
                 patch("src.ebpf_smoke_test.subprocess.run"),
                 patch("src.ebpf_smoke_test.wait_for_registration", side_effect=[None, RuntimeError("detach failed")]),
-                patch("src.ebpf_smoke_test.exercise_socket", return_value={"actual_algorithm": "cs422_handwrite"}),
+                patch("src.ebpf_smoke_test.exercise_socket", return_value={
+                    "actual_algorithm": "cs422_handwrite", "pacing_rate_bytes_per_s": 100000,
+                }),
             ):
                 with self.assertRaisesRegex(RuntimeError, "detach failed"):
-                    run_smoke_test(root / "scaffold.o", root)
+                    run_smoke_test(root / "cs422_scaffold.bpf.o", root)
 
     def test_success_identifies_scaffold_not_custom_controller(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -141,10 +143,38 @@ class BpfScaffoldLifecycleTests(unittest.TestCase):
                 patch("src.ebpf_smoke_test.wait_for_registration"),
                 patch("src.ebpf_smoke_test.exercise_socket", return_value={"actual_algorithm": "cs422_handwrite"}),
             ):
-                result = run_smoke_test(root / "scaffold.o", root)
+                result = run_smoke_test(root / "cs422_scaffold.bpf.o", root)
             self.assertEqual(result["status"], "passed")
             self.assertEqual(result["implementation"], "reno-backed-registration-scaffold")
             self.assertEqual(list(root.iterdir()), [])
+
+    def test_custom_controller_is_labeled_separately(self) -> None:
+        with (
+            patch("src.ebpf_smoke_test.attached_scaffold"),
+            patch("src.ebpf_smoke_test.exercise_socket", return_value={
+                "actual_algorithm": "cs422_handwrite", "pacing_rate_bytes_per_s": 100000,
+            }),
+        ):
+            result = run_smoke_test(Path("cs422_handwrite.bpf.o"), Path("bpffs"))
+        self.assertEqual(result["implementation"], "delay-based-round-controller")
+
+    def test_custom_controller_without_finite_pacing_rate_fails(self) -> None:
+        for rate in (None, 0, (1 << 64) - 1):
+            with (
+                self.subTest(rate=rate),
+                patch("src.ebpf_smoke_test.attached_scaffold"),
+                patch("src.ebpf_smoke_test.exercise_socket", return_value={
+                    "actual_algorithm": "cs422_handwrite", "pacing_rate_bytes_per_s": rate,
+                }),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "pacing rate"):
+                    run_smoke_test(Path("cs422_handwrite.bpf.o"), Path("bpffs"))
+
+    def test_unknown_object_name_is_rejected_before_loading(self) -> None:
+        with patch("src.ebpf_smoke_test.attached_scaffold") as attach:
+            with self.assertRaises(ValueError):
+                run_smoke_test(Path("unknown.bpf.o"), Path("bpffs"))
+        attach.assert_not_called()
 
     @unittest.skipUnless(platform.system() == "Linux", "requires Linux TCP_INFO")
     def test_socket_transfer_with_existing_reno_without_bpf_or_root(self) -> None:

@@ -1,0 +1,217 @@
+CS422 TCP eBPF CONTROLLER - TESTING AND USEFUL COMMANDS
+====================================================
+
+This implementation uses TCP eBPF struct_ops, not a .ko module. Do not use
+insmod/rmmod for it. Commands below run in Ubuntu/WSL Bash, not PowerShell.
+Run builds and ordinary experiments as your normal user. Only installation,
+BPF mounting/loading/inspection and link removal need sudo.
+
+The original Reno scaffold passed its live smoke test on kernel
+6.18.54.1-microsoft-standard-WSL2. The new controller needs its own live test.
+Never report scaffold measurements as custom-algorithm results.
+
+1. LOCATE THE REPOSITORY AND BUILD OUTPUT
+
+  cd '/mnt/c/Users/Francis Wang/Documents/cs422/assignment2-3'
+  export BUILD_DIR="/home/francis_wang/.cache/cs422-ebpf/$(uname -r)"
+
+BUILD_DIR here is an absolute path, so it also works in your existing root
+shell. If using a different Linux account, replace /home/francis_wang with
+that account's home. Keep generated files on the Linux filesystem. This
+variable lasts only for this shell; set it again after opening a new terminal.
+
+2. CHECK THE ENVIRONMENT
+
+  uname -r
+    Exact running kernel. Rebuild and retest after changing it.
+
+  clang --version
+  clang --print-targets | grep bpf
+    Compiler version and presence of BPF compilation targets.
+
+  bpftool version
+  pkg-config --modversion libbpf
+    BPF tool and development-library versions (they may differ).
+
+  sudo bpftool feature probe kernel | grep -E 'struct_ops|bpf_syscall'
+    Checks kernel BPF support; not proof that our program passes the verifier.
+
+  sudo bpftool btf dump file /sys/kernel/btf/vmlinux format raw \
+    | grep -F "STRUCT 'tcp_congestion_ops'"
+    Confirms TCP congestion-control type metadata.
+
+  sysctl net.ipv4.tcp_available_congestion_control
+    Lists currently registered algorithms, not every loadable algorithm.
+
+  sysctl net.ipv4.tcp_congestion_control
+    Shows the default. Our tests do not change this.
+
+3. INSTALL TOOLS IF MISSING
+
+  sudo apt update
+  sudo apt install --no-install-recommends \
+    build-essential clang llvm bpftool pkg-config \
+    libbpf-dev libelf-dev zlib1g-dev
+
+4. BUILD AND RUN DETERMINISTIC TESTS (NO ROOT NEEDED)
+
+  make -C cc/ebpf all test BUILD_DIR="$BUILD_DIR"
+
+Builds both BPF objects, generates vmlinux.h from the running kernel's BTF,
+and executes the shared controller's native C tests. Expected final message:
+"controller tests passed: ...". This is not a verifier/load test.
+
+  python3 -m unittest tests.test_ebpf_smoke_test \
+    tests.test_tcp_info tests.test_congestion_control
+
+Tests Python lifecycle/failure handling, telemetry and socket selection.
+On Linux this includes a real unprivileged Reno loopback transfer.
+
+5. MOUNT THE BPF FILESYSTEM IF NECESSARY
+
+  findmnt --target /sys/fs/bpf --output TARGET,FSTYPE
+
+If FSTYPE is not bpf:
+
+  sudo mount -t bpf bpf /sys/fs/bpf
+
+This is a runtime mount; it may need repeating after WSL restarts.
+Do not mount over an already mounted BPF filesystem.
+
+6. RUN THE CUSTOM CONTROLLER'S AUTOMATIC LIVE TEST
+
+  sudo python3 -m src.ebpf_smoke_test \
+    --object "$BUILD_DIR/cs422_handwrite.bpf.o"
+
+Loads/registers, selects cs422_handwrite before connect, checks a 240 KiB
+loopback transfer, acknowledged bytes, cwnd and a finite native pacing rate,
+then closes sockets, removes its private link pin and verifies detachment.
+Expected JSON: status "passed", implementation "delay-based-round-controller",
+actual_algorithm "cs422_handwrite", received_bytes 245760.
+
+The temporary pin directory is /sys/fs/bpf/cs422-smoke-<unique suffix>.
+Do not run concurrent tests or the test while a persistent registration exists.
+Only a fresh build with the expected filename should be used: the label is
+based on that filename, not a cryptographic identity check.
+
+7. RERUN THE ORIGINAL RENO SCAFFOLD FOR COMPARISON/DEBUGGING
+
+  sudo python3 -m src.ebpf_smoke_test \
+    --object "$BUILD_DIR/cs422_scaffold.bpf.o"
+
+Same algorithm name, different implementation: Reno only. Must run separately.
+Expected implementation label: "reno-backed-registration-scaffold".
+
+8. LOAD PERSISTENTLY FOR EXPERIMENTS
+
+First verify cs422_handwrite is absent from the available-algorithm list.
+Inspect existing pins if it is already registered; do not overwrite them.
+
+  sudo mkdir /sys/fs/bpf/cs422-handwrite
+  sudo bpftool struct_ops register "$BUILD_DIR/cs422_handwrite.bpf.o" \
+    /sys/fs/bpf/cs422-handwrite
+
+This creates the link pin:
+  /sys/fs/bpf/cs422-handwrite/cs422_handwrite
+
+  sudo bpftool struct_ops show
+  sudo bpftool link show
+  sysctl net.ipv4.tcp_available_congestion_control
+
+These inspect loaded TCP struct_ops objects, BPF links, and available algorithms.
+Do not run the automatic smoke test against this existing registration.
+
+9. INSPECT ACTIVE CONTROLLER ACTIVITY AND TCP STATE
+
+  sudo bpftool map dump name cs422_events
+
+Per-CPU counters; sum CPU values at each key:
+  0 socket init, 1 valid RTT sample, 2 completed round, 3 skipped round,
+  4 additive increase, 5 delay backoff, 6 loss/ECN threshold callback.
+Counters reset on reload. The map disappears after all object references close.
+Zero delay backoffs on a short/app-limited loopback test are not a failure.
+
+  ss -tin
+    TCP connection information including congestion-control/RTT/cwnd details.
+
+  tc qdisc show
+    Current packet queueing setup; inspection only.
+
+  sysctl net.ipv4.tcp_pacing_ss_ratio net.ipv4.tcp_pacing_ca_ratio
+    Native slow-start and avoidance pacing ratios; inspection only.
+
+  sudo journalctl -k -n 50 --no-pager
+    Recent kernel diagnostics, if journald is available.
+
+Native pacing is requested on the custom socket; Linux computes its rate.
+Neither the loader nor controller changes global sysctls or qdiscs.
+A finite pacing rate alone does not prove smooth packet timing on the wire.
+
+10. RUN THE EXISTING FOUR-ALGORITHM COMPARISON
+
+If BBR is not available, its installed kernel module can be loaded with:
+  sudo modprobe tcp_bbr
+
+Check availability again. This loads BBR but does not make it the default.
+Use a real selected_endpoints CSV from a previous successful live experiment.
+Replace the placeholder below; it is not a literal filename to create.
+
+  python3 -m src.assignment2_question3 \
+    --endpoint-plan '<path-to-selected_endpoints.csv>' \
+    --algorithms Hand-Written CUBIC Reno BBR \
+    --repetitions 3 --duration 10 --sample-interval 0.2 \
+    --base-run-id custom-10s
+
+Uses fixed destinations and rotated order. Failures are recorded; inspect
+the manifest rather than assuming all four algorithms completed successfully.
+Use a new base-run-id each time to avoid overwriting prior outputs.
+
+With matplotlib installed in your chosen Python environment:
+
+  python3 -m src.plot_assignment2_question3 custom-10s
+
+Generates seven shared-axis comparison views. Specify --destination HOST to
+select the same representative endpoint explicitly. These public-server
+experiments must use standard iperf3 servers, not the smoke-test receiver.
+
+11. DETACH AFTER EXPERIMENTS
+
+Stop experiments and close sockets using the algorithm first.
+For the persistent registration created in section 8 ONLY:
+
+  sudo rm /sys/fs/bpf/cs422-handwrite/cs422_handwrite
+  sudo rmdir /sys/fs/bpf/cs422-handwrite
+  sysctl net.ipv4.tcp_available_congestion_control
+
+Removing the final link pin releases registration; verify the name disappears.
+Do not recursively delete /sys/fs/bpf or remove another program's pins.
+
+If an automatic smoke test was forcibly killed, inspect its exact private
+directory with ls and bpftool. Remove only its owned link pin, then its empty
+directory. Never substitute wildcards in removal commands.
+
+12. IF THE CUSTOM OBJECT FAILS THE VERIFIER
+
+Retain the full terminal output/traceback. After checking no registration
+or partial pin remains, retry registration with bpftool debug output:
+
+  sudo mkdir /sys/fs/bpf/cs422-debug
+  sudo bpftool -d struct_ops register "$BUILD_DIR/cs422_handwrite.bpf.o" \
+    /sys/fs/bpf/cs422-debug
+
+If registration succeeds, close any using sockets and remove only:
+  sudo rm /sys/fs/bpf/cs422-debug/cs422_handwrite
+  sudo rmdir /sys/fs/bpf/cs422-debug
+
+If registration fails without creating a pin, just rmdir the empty directory.
+Inspect before removing anything; verifier rejection is not a successful test.
+Rerun the Reno scaffold to separate general environment failures from errors
+specific to the new controller. Do not silently fall back to Reno for results.
+
+VALIDATION LIMITS
+
+Native tests verify shared arithmetic/state transitions, not the kernel's
+callback ordering or verifier. Loopback tests verify integration, not real
+queue buildup, fairness or recovery under loss. Controlled delay/loss traces
+and repeated public-server comparisons are still needed before making claims.
+See cc/ebpf/README.md and reports/assignment2_3b.txt for behavior and limitations.

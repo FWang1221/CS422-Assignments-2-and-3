@@ -23,8 +23,11 @@ algorithm on the unconnected data socket, verifies the kernel-selected value,
 and writes a comparison manifest. Failed or unavailable algorithms are recorded
 without replacing destinations.
 
-`Hand-Written` reserves the future Linux module name `cs422_handwrite`; it will
-remain unavailable until Question 3(b)/Assignment 3 supplies and loads it.
+`Hand-Written` uses the Linux registration name `cs422_handwrite`. The custom
+TCP eBPF controller and separate Reno-backed scaffold are in `cc/ebpf`; only one
+may be loaded at a time. The custom algorithm remains unavailable until its
+object is registered. See `cc/ebpf/README.md` and `kernel_test_help.txt` for
+build, validation, load and detach commands.
 `src/plot_assignment2_question3.py` generates the required seven shared-axis
 comparison views for one representative destination. Operating-regime
 interpretation and report discussion remain TODOs.
