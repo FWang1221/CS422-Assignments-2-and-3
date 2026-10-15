@@ -204,3 +204,21 @@ application limitation, one decision per round, sequence wrap, and socket-state
 isolation. It does not exercise the verifier, kernel callback ordering or
 retransmission machinery. For those, retain the live smoke output and collect
 controlled congestion/loss traces before making behavior or performance claims.
+
+The test target also checks that every custom callback has a dedicated
+`struct_ops/handwrite_*` ELF section. Sharing one section caused the target
+kernel to reject a later void callback as a global subprogram with the message
+`Global function handwrite_pkts_acked() doesn't return scalar`. Separate
+sections preserve the correct void kernel callback signatures while making
+each callback a distinct BPF entry point. This layout check is not a substitute
+for rerunning the privileged smoke test after a rebuild.
+
+The RTT sorter uses 36 branch-free compare/exchanges. A conditional-swap
+version exhausted the verifier's one-million processed-instruction budget
+through state exploration, despite having only a few hundred actual
+instructions. An explicit BPF arithmetic-mask sequence prevents LLVM from
+reintroducing comparison branches; the native version uses equivalent unsigned
+arithmetic. `make test` checks the emitted mask count and compares median/base
+RTT results with an independent `qsort` reference for all 5,040 distinct
+seven-value permutations (including prefixes and ring wrap) and 2,187
+duplicate-heavy sequences. Live verifier acceptance still requires a reload.

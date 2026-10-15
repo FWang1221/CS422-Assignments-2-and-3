@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef uint8_t __u8;
@@ -57,6 +58,68 @@ static void test_median(void)
 	for (int i = 0; i < 7; i++)
 		cc_rtt(&ca, 50);
 	assert(ca.base_us == 50);
+}
+
+static int compare_u32(const void *left, const void *right)
+{
+	__u32 a = *(const __u32 *)left, b = *(const __u32 *)right;
+
+	return (a > b) - (a < b);
+}
+
+static void check_median_sequence(const __u32 *values, unsigned int length)
+{
+	struct cc_state ca = {};
+	__u32 history[7] = {}, sorted[7], base = CC_U32_MAX;
+	unsigned int count = 0;
+
+	for (unsigned int i = 0; i < length; i++) {
+		history[i % 7] = values[i];
+		if (count < 7)
+			count++;
+		memcpy(sorted, history, sizeof(sorted));
+		qsort(sorted, count, sizeof(sorted[0]), compare_u32);
+		__u32 median = sorted[(count - 1) / 2];
+
+		if (median < base)
+			base = median;
+		cc_rtt(&ca, values[i]);
+		assert(ca.median_us == median && ca.base_us == base);
+	}
+}
+
+static void test_median_permutations(void)
+{
+	/* All 7! distinct orderings, including every partially-filled prefix. */
+	for (unsigned int code = 0; code < 5040; code++) {
+		__u32 pool[7] = {1, 2, 3, 100, 1000, 1000000, 0x7fffffff};
+		__u32 values[14];
+		unsigned int remaining = 7, digits = code;
+
+		for (unsigned int i = 0; i < 7; i++) {
+			unsigned int pick = digits % remaining;
+
+			digits /= remaining;
+			values[i] = pool[pick];
+			for (unsigned int j = pick; j + 1 < remaining; j++)
+				pool[j] = pool[j + 1];
+			remaining--;
+			values[i + 7] = values[i];
+		}
+		check_median_sequence(values, 14);
+	}
+	/* All duplicate-heavy seven-sample sequences over three extreme values. */
+	for (unsigned int code = 0; code < 2187; code++) {
+		const __u32 choices[] = {1, 100, 0x7fffffff};
+		__u32 values[7];
+		unsigned int digits = code;
+
+		for (unsigned int i = 0; i < 7; i++) {
+			values[i] = choices[digits % 3];
+			digits /= 3;
+		}
+		check_median_sequence(values, 7);
+	}
 }
 
 static void test_thresholds(void)
@@ -199,6 +262,7 @@ static void test_transient_limitation_and_arithmetic_bounds(void)
 int main(void)
 {
 	test_median();
+	test_median_permutations();
 	test_thresholds();
 	test_skips_and_round_boundaries();
 	test_once_per_round_and_wrap();

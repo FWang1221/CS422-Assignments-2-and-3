@@ -50,7 +50,8 @@ _Static_assert(sizeof(struct cc_state) <=
 	       sizeof(((struct inet_connection_sock *)0)->icsk_ca_priv),
 	       "controller exceeds TCP per-socket congestion-control storage");
 
-SEC("struct_ops")
+/* Separate sections keep void callbacks out of global-subprogram validation. */
+SEC("struct_ops/handwrite_init")
 void BPF_PROG(handwrite_init, struct sock *sk)
 {
 	struct cc_state *ca = state(sk);
@@ -61,7 +62,7 @@ void BPF_PROG(handwrite_init, struct sock *sk)
 	count_event(CC_EVENT_INIT);
 }
 
-SEC("struct_ops")
+SEC("struct_ops/handwrite_pkts_acked")
 void BPF_PROG(handwrite_pkts_acked, struct sock *sk, const struct ack_sample *sample)
 {
 	if (sample->rtt_us > 0) {
@@ -70,7 +71,7 @@ void BPF_PROG(handwrite_pkts_acked, struct sock *sk, const struct ack_sample *sa
 	}
 }
 
-SEC("struct_ops")
+SEC("struct_ops/handwrite_state")
 void BPF_PROG(handwrite_state, struct sock *sk, __u8 new_state)
 {
 	/* Freeze through CWR, fast recovery and RTO loss; start a fresh flight. */
@@ -80,7 +81,7 @@ void BPF_PROG(handwrite_state, struct sock *sk, __u8 new_state)
 	}
 }
 
-SEC("struct_ops")
+SEC("struct_ops/handwrite_ssthresh")
 __u32 BPF_PROG(handwrite_ssthresh, struct sock *sk)
 {
 	struct tcp_sock *tp = (struct tcp_sock *)sk;
@@ -92,7 +93,7 @@ __u32 BPF_PROG(handwrite_ssthresh, struct sock *sk)
 	return cc_loss_threshold(tp->snd_cwnd);
 }
 
-SEC("struct_ops")
+SEC("struct_ops/handwrite_undo")
 __u32 BPF_PROG(handwrite_undo, struct sock *sk)
 {
 	struct tcp_sock *tp = (struct tcp_sock *)sk;
@@ -102,7 +103,7 @@ __u32 BPF_PROG(handwrite_undo, struct sock *sk)
 			tp->snd_cwnd_clamp);
 }
 
-SEC("struct_ops")
+SEC("struct_ops/handwrite_cong_avoid")
 void BPF_PROG(handwrite_cong_avoid, struct sock *sk, __u32 ack, __u32 acked)
 {
 	struct tcp_sock *tp = (struct tcp_sock *)sk;

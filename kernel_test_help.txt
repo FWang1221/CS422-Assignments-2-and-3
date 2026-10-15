@@ -58,6 +58,8 @@ variable lasts only for this shell; set it again after opening a new terminal.
   make -C cc/ebpf all test BUILD_DIR="$BUILD_DIR"
 
 Builds both BPF objects, generates vmlinux.h from the running kernel's BTF,
+checks that the custom callbacks occupy separate struct_ops ELF sections,
+checks the emitted branch-free RTT sorting masks,
 and executes the shared controller's native C tests. Expected final message:
 "controller tests passed: ...". This is not a verifier/load test.
 
@@ -191,6 +193,18 @@ directory with ls and bpftool. Remove only its owned link pin, then its empty
 directory. Never substitute wildcards in removal commands.
 
 12. IF THE CUSTOM OBJECT FAILS THE VERIFIER
+
+For "Global function handwrite_pkts_acked() doesn't return scalar", rebuild
+the current source first. Every custom callback now has its own
+struct_ops/handwrite_* section to avoid treating a later void callback as a
+global subprogram. Do not change the actual kernel callback's void signature
+to work around that message. The make test target checks the section layout.
+
+For "BPF program is too large. Processed 1000001 insn", the important number
+is verifier exploration work, not the object's instruction count. The RTT
+sorter now uses branch-free arithmetic compare/exchanges to avoid branch-state
+explosion. Rebuild current sources; make test checks the emitted BPF masks and
+tests median correctness independently. A new privileged load is still needed.
 
 Retain the full terminal output/traceback. After checking no registration
 or partial pin remains, retry registration with bpftool debug output:

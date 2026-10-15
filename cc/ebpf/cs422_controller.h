@@ -51,6 +51,20 @@ CC_INLINE __u32 cc_bound(__u32 cwnd, __u32 clamp)
 	return cwnd < clamp ? cwnd : clamp;
 }
 
+CC_INLINE __u32 cc_swap_mask(__u32 a, __u32 b)
+{
+#ifdef __BPF__
+	__u64 mask;
+
+	/* Keep LLVM from turning the arithmetic mask back into a branch. */
+	asm volatile("%0 = %1; %0 -= %2; %0 s>>= 63;"
+		     : "=&r"(mask) : "r"((__u64)b), "r"((__u64)a));
+	return mask;
+#else
+	return 0U - (__u32)(((__u64)b - a) >> 63);
+#endif
+}
+
 CC_INLINE void cc_rtt(struct cc_state *ca, __s32 rtt_us)
 {
 	__u32 sorted[CC_RTT_SAMPLES];
@@ -83,12 +97,15 @@ CC_INLINE void cc_rtt(struct cc_state *ca, __s32 rtt_us)
 #pragma unroll
 #endif
 		for (int j = 0; j < CC_RTT_SAMPLES - 1; j++) {
-			if (sorted[j] > sorted[j + 1]) {
-				__u32 tmp = sorted[j];
+			/* Both operands are u32, so u64 subtraction's top bit
+			 * indicates underflow without a verifier-path branch.
+			 */
+			__u32 a = sorted[j], b = sorted[j + 1];
+			__u32 mask = cc_swap_mask(a, b);
+			__u32 swap = (a ^ b) & mask;
 
-				sorted[j] = sorted[j + 1];
-				sorted[j + 1] = tmp;
-			}
+			sorted[j] = a ^ swap;
+			sorted[j + 1] = b ^ swap;
 		}
 	}
 	index = (ca->count - 1) / 2;
