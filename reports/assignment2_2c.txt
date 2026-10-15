@@ -1,0 +1,38 @@
+- (Assignment2-2c) **Observations.** Explain what each of the above TCP metrics (in the visualizations) means and how you expect it to influence goodput in congestion avoidance, and describe any anomalous behavior observed in your traces.
+
+
+TCP Metrics:
+
+Congestion Window, CWND: The amount of unacknowledged data the sender allows in flight at any given time. For the CUBIC algorithm, it aggressively grows this to probe for the maximum bandwidth.
+
+Smoothed RTT: The Round-Trip-Time (latency) for packets, averaged out to remove minor noise.
+
+Retransmissions: The number of packets dropped by the network, usually due to router buffers overflowing, that need to be sent again.
+
+Goodput: The actual usable application-level bandwidth achieved, excluding retransmitted packets and protocol overhead.
+
+
+How Does It Affect Goodput In Congestion Avoidance?
+
+Congestion Window, CWND: Goodput scales with the CWND until the goodput plateaus as extra CWND doesn't give any more returns. Once the optimal CWND passes, thanks to CUBIC's aggressive growth, the algorithm frequently hamstrings itself as the additional CWND works against goodput, since when we push the CWND past the network's capacity, our goodput plateaus while the router buffers fill, and then after the buffer overflows, a packet loss is caused that forces TCP to slash the CWND.
+
+Smoothed RTT: Round-Trip-Time explains itself, where the longer it takes a packet to fulfill a cycle, the more RTT inflates from its baseline, the worse goodput gets. The smoothed RTT can be increased by the aforementioned additional CWND once we go past the optimal CWND size, and like CWND, the maximum goodput is achieved long before the maximum RTT.
+
+Retransmissions: Lowers Goodput due to needing to transmit a packet multiple times rather than getting it right the first time, as well as indicates to TCP that congestion is happening, making the algorithm cut its CWND.
+
+
+General Notes On Behavior (Anomalous And Otherwise) During Traces:
+
+Cases:
+
+High Bandwidth, Deep Buffers:
+
+High goodput, but has sever bufferbloat. CUBIC pushes CWND very high, but the RTT also climbs higher and higher. Since the router has deep buffers, the packets are held onto instead of being dropped early, causing the noted behavior, sinec CUBIC only cares when packets get dropped. This creates a huge drop and following retransmission spike when the buffer overflows, oscillating goodput wildly.
+
+High Latency, Stable Bottleneck:
+
+Slower and higher-latency, with a high RTT baseline, and the RTT doesn't climb too much as CWND grows. The stability will form a clean sawtooth pattern, and packet loss when it occurs is minor, allowing the goodput to remain stable.
+
+High Jitter, Erratic Network:
+
+An unstable and likely congested network, with heavy and unpredictable cross-traffic. The stable RTT fluctuates wildly, and the CWND is constantly being chopped down by frequent retransmissions from packet drops, resulting in erratic goodput.

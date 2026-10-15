@@ -1,0 +1,105 @@
+- (Assignment2: 3b) **Design a hand-written algorithm.** Using your measurements, design a congestion control algorithm and write pseudocode specifying how it updates the congestion window based on RTT, packet-loss estimates or a loss proxy, and throughput. Explain your design choices. Discuss whether competing flows using your algorithm are expected to share bandwidth fairly and whether their sending rates converge to a stable operating point. State your assumptions and explain any expected limitations.
+
+
+General Overview: It's AIMD but instead of packet loss determining scale bakc, we check a moving median RTT of the last 7 (arbitrary magic number chosen) or so samples and compare it to goodput. If the ratio is getting worse, we scale back slightly. For dealing with retransmission spikes, we need pacing prediction to enforce smooth packet transmission schedule based on estimated bottleneck bandwidth, rather than dumping packets in bursts.
+
+
+Rationale: In order to make it so that the network pipe doesn't just fill up the router buffer uselessly, we check RTT, and to deal with high jitter, a moving median sampler is used. We pace ourselves to not fall into a retransmission spike based on estimating a safe bottleneck bandwidth.
+
+
+Fairness:
+
+This algorithm is fair when everyone else uses it. Multiple flows with this algorithm competing on the same link will all converge to a stable and fair operating point, due to measuring the same RTT inflation, the queue buildup, simultaneously, they back off symmetrically, and prevent wild oscillations.
+
+This algorithm will be starved against standard TCP CUBIC. It will not share bandwidth fairly. CUBIC ignores RTT inflation and keeps pushing until a packet drops. The algorithm here backs off when detecting delay, when faced with algorithm like CUBIC, which will happily stab us in the back for our magnanimity, aggressively consuming bandwidth our algorithm yields, it leads us to starvation. However, this algorithm is meant for optimizing for our current scenario, and isn't a generalized congestion control algorithm like CUBIC is.
+
+
+Control Flow:
+
+1. Initialization:
+
+Init standard TCP params: Congestion Window (cwnd), Slow Start Threshold (ssthresh), bytes in flight. Circular buffer stores last 7 RTT samples. Initialize a pacing_rate variable, in bytes/ms.
+
+2. ACK Processing: When ACKs arrive, algorithm processes network feedback before adjusting the windows:
+
+Update the RTT history, pushing the newly measured RTT into the 7-sample circular buffer, calculating our moving median. We now calculate our latest goodput.
+
+3. Congestion Decision System:
+
+Safe Zone State: Goodput rises, RTT is stable:
+
+This means the network pipe is filling. Standard additive growth goes here.
+
+Buffer Zone State: Goodput plateaus, RTT rises:
+
+This means the pipe is full and we are now filling the router's buffer, approaching the cliff. We scale back the cwnd by the backoff factor, such as 0.8 (arbitrary magic number), and update ssthresh. We don't wait for packet drops.
+
+Packet Loss State:
+
+If a packet is dropped (duplicate ACKs or timeout indicates this), fall back to the multiplicative decrease to clear the bottleneck.
+
+4. Pacing Rate Calculation:
+
+After adjusting cwnd, calculate new safe transmission speed. pacing_rate = cwnd / moving_median_RTT. This gives us our bottleneck bandwidth in bytes/ms, preventing the client from sending faster than the network can drain.
+
+5. Transmission Timer, Pacing The Sends:
+
+Decouple sending of packets from arrival of ACKs.
+
+Rather than dumping all alloweed cwnd packets onto the wire the moment an ACK arrives, causing micro bursts and massive retransmission spikes, hand the packets to a pacing queue.
+
+A high-resolution timer dispatches packets from this queue strictly at the calculated pacing_rate, ensuring a smooth flow of traffic.
+
+
+Assumptions:
+
+The minimum measured RTT, base_rtt, accurately reflects the physical propagation delay of an empty network path.
+
+The bottleneck router has enough buffer space to allow RTT to inflat esmoothly so we can detect congestion before a drop occurs.
+
+
+Limitations:
+
+Route changes, such as traffic being shifted to a longer physical fiber path, will permanently increase the true physical RTT, and the algorithm may interpret this as permanent router congestion and artificially cap bandwidth until base_rtt is reset.
+
+
+Pseudocode segment:
+
+Initialize:
+    cwnd = 10
+    base_rtt = infinity
+    rtt_history = Array(size 7)
+    threshold_alpha = 3 // Threshold for scaling up
+    threshold_beta = 6  // Threshold for scaling down
+
+On ACK received (bytes_acked):
+    current_rtt = measure_rtt()
+    rtt_history.push(current_rtt)
+    median_rtt = get_median(rtt_history)
+    
+    // Track the absolute minimum delay (empty queue delay)
+    if median_rtt < base_rtt: 
+        base_rtt = median_rtt
+
+    // Calculate throughputs
+    actual_goodput = bytes_acked / time_since_last_ack
+    expected_goodput = cwnd / base_rtt
+
+    // Calculate queue buildup (the loss proxy)
+    // Diff represents how many packets are currently sitting in the router buffer
+    diff = (expected_goodput - actual_goodput) * base_rtt
+
+    if packet_loss_detected(): // Failsafe
+        cwnd = cwnd / 2
+    else if diff < threshold_alpha:
+        // Safe Zone: Little queue buildup, increase window
+        cwnd = cwnd + (1 / cwnd) 
+    else if diff > threshold_beta:
+        // Buffer Zone: Queue is filling, back off before loss occurs
+        cwnd = cwnd * 0.8 
+
+    // Enforce pacing
+    pacing_rate = cwnd / median_rtt
+    set_timer(pacing_rate)
+
+
