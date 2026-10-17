@@ -27,7 +27,7 @@ Cases:
 
 High Bandwidth, Deep Buffers:
 
-High goodput, but has sever bufferbloat. CUBIC pushes CWND very high, but the RTT also climbs higher and higher. Since the router has deep buffers, the packets are held onto instead of being dropped early, causing the noted behavior, sinec CUBIC only cares when packets get dropped. This creates a huge drop and following retransmission spike when the buffer overflows, oscillating goodput wildly.
+High goodput, but has severe bufferbloat. CUBIC pushes CWND very high, but the RTT also climbs higher and higher. Since the router has deep buffers, the packets are held onto instead of being dropped early, causing the noted behavior, sinec CUBIC only cares when packets get dropped. This creates a huge drop and following retransmission spike when the buffer overflows, oscillating goodput wildly.
 
 High Latency, Stable Bottleneck:
 

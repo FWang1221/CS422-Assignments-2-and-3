@@ -71,3 +71,11 @@ Oct3-Oct9: Modules A and C: Coordinate the socket-level API calls so the Python 
 Oct10-16: All Teams: Team A runs the custom algorithm from Team C against public servers, piping the live 10-second test statistics directly into Team B's graphing scripts
 
 Oct17-21: All Teams: Perform a full dry-run of the Docker pipeline from start to finish and assemble the Brightspace PDF report
+
+
+
+
+
+
+
+todos: add docker, compare custom algorithm vs others, run full large tests, add one-tap test suite.

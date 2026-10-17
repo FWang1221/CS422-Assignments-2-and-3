@@ -1,11 +1,12 @@
 import csv
+import errno
 import tempfile
 import threading
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.assignment2_step1 import LinuxIperf3Client, LiveRunResult, run_step1_experiment
+from src.assignment2_step1 import LinuxIperf3Client, LiveRunResult, _failure_reason, run_step1_experiment
 from src.simulated_client import Endpoint
 from src.tcp_info import TcpInfo
 
@@ -80,6 +81,11 @@ class ConcurrentFakeClient:
 
 
 class Assignment2Step1Tests(unittest.TestCase):
+    def test_unavailable_congestion_control_is_reported_with_its_algorithm_name(self) -> None:
+        error = FileNotFoundError(errno.ENOENT, "No such file or directory")
+
+        self.assertEqual(_failure_reason(error, "bbr"), "congestion_control_unavailable:bbr")
+
     def test_goodput_uses_acknowledged_byte_delta_and_actual_interval(self) -> None:
         endpoint = Endpoint("works.example", 5201, "", "", "", "", "")
         info = TcpInfo(1_250, 10, 1_000, 100, 3, 0, 7, 1_000, 2_000_000, 1_500_000)

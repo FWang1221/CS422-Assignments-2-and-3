@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import errno
 import json
 import logging
 import math
@@ -429,7 +430,7 @@ class LinuxIperf3Client:
             )
         except (OSError, IperfProtocolError) as error:
             LOGGER.debug("failed run %s for %s:%s: %s", run_id, endpoint.host, endpoint.port, error)
-            return LiveRunResult(endpoint, "failed", [], _failure_reason(error))
+            return LiveRunResult(endpoint, "failed", [], _failure_reason(error, self.congestion_algorithm), requested_algorithm=self.requested_algorithm)
         finally:
             if data_socket is not None:
                 data_socket.close()
@@ -437,7 +438,9 @@ class LinuxIperf3Client:
                 control_socket.close()
 
 
-def _failure_reason(error: BaseException) -> str:
+def _failure_reason(error: BaseException, requested_algorithm: str | None = None) -> str:
+    if requested_algorithm is not None and isinstance(error, FileNotFoundError) and error.errno == errno.ENOENT:
+        return f"congestion_control_unavailable:{requested_algorithm}"
     if isinstance(error, ConnectionRefusedError):
         return "connection_refused"
     if isinstance(error, (socket.timeout, TimeoutError)):
