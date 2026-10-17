@@ -1,0 +1,31 @@
+run_id,attempt_number,host,port,client,status,failure_reason
+baseline-20261017,3,41.110.39.130,5201,iperf3-live,failed,access_denied
+baseline-20261017,1,speedtest.ams1.nl.leaseweb.net,5204,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,4,speedtest.lon1.uk.leaseweb.net,5204,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,2,iperf3.moji.fr,5229,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,5,speedtest1.cwpanama.net,5506,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,6,la.speedtest.clouvider.net,5209,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,9,a209.speedtest.wobcom.de,5201,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,10,96.45.42.156,30007,iperf3-live,failed,premature_termination
+baseline-20261017,11,speedtestfl.telecom.mu,5208,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,12,156.146.40.65,5201,iperf3-live,failed,premature_termination
+baseline-20261017,14,speedtest.uztelecom.uz,5207,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,13,148.230.45.213,30007,iperf3-live,failed,premature_termination
+baseline-20261017,16,148.230.60.200,30008,iperf3-live,failed,premature_termination
+baseline-20261017,17,217.61.40.96,5201,iperf3-live,failed,premature_termination
+baseline-20261017,8,195.181.162.195,5201,iperf3-live,completed,
+baseline-20261017,7,84.17.57.129,5201,iperf3-live,completed,
+baseline-20261017,19,syd.proof.ovh.net,5201,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,20,speedtest.ams2.nl.leaseweb.net,5204,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,21,speedtest.level66.services,5203,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,23,t5.cscs.ch,5202,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,24,iperf.worldstream.nl,5201,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,15,41.210.185.162,5201,iperf3-live,completed,
+baseline-20261017,26,speed-cb.dimensione.com,5208,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,18,204.155.243.172,30007,iperf3-live,completed,
+baseline-20261017,27,bwtest.linxtelecom.com,5205,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,22,96.45.38.22,30007,iperf3-live,completed,
+baseline-20261017,30,speedtest.sin1.sg.leaseweb.net,5207,iperf3-live,failed,gaierror: [Errno -3] Temporary failure in name resolution
+baseline-20261017,25,154.81.51.4,5201,iperf3-live,completed,
+baseline-20261017,28,185.93.3.50,5201,iperf3-live,completed,
+baseline-20261017,29,105.235.237.2,5204,iperf3-live,completed,

@@ -31,54 +31,67 @@ def _number(row: dict[str, str], field: str) -> float | None:
     return float(value) if value else None
 
 
+def _algorithm_colors(algorithms: list[str]) -> dict[str, str]:
+    """! @brief Assign one Matplotlib color to each comparison algorithm."""
+    return {algorithm: f"C{index}" for index, algorithm in enumerate(algorithms)}
+
+
 def generate_comparison_plots(base_run_id: str, tables_directory: Path, output_directory: Path, destination: str | None = None) -> Path:
-    """! @brief Produce shared-axis CUBIC/Reno/BBR PDF plots for one destination.
+    """! @brief Produce shared-axis CUBIC/Reno/BBR PDF plots by destination.
 
     @param base_run_id Comparison coordinator base ID.
     @param tables_directory Directory containing comparison manifest and samples.
     @param output_directory Directory receiving the PDF.
-    @param destination Representative destination; defaults to the first completed one.
-    @return Generated multi-page comparison PDF path.
+    @param destination Optional representative-destination filter.
+    @return Generated multi-page comparison PDF path. Without a filter, the PDF
+    includes grouped pages for every completed destination.
     """
     manifest_path = tables_directory / f"comparison_manifest_{base_run_id}.csv"
     with manifest_path.open(newline="", encoding="utf-8") as handle:
         manifest_rows = [row for row in csv.DictReader(handle) if row["status"] == "completed"]
     if not manifest_rows:
         raise ValueError("comparison manifest has no completed runs")
-    representative = destination or manifest_rows[0]["destination"]
-    grouped: dict[str, list[list[dict[str, str]]]] = defaultdict(list)
-    for row in manifest_rows:
-        if row["destination"] != representative:
-            continue
-        with (tables_directory / f"samples_{row['run_id']}.csv").open(newline="", encoding="utf-8") as handle:
-            samples = [sample for sample in csv.DictReader(handle) if sample["destination"] == representative]
-        grouped[row["requested_algorithm"]].append(samples)
-    if not grouped:
-        raise ValueError(f"representative destination not found: {representative}")
+    destinations = [destination] if destination is not None else list(dict.fromkeys(row["destination"] for row in manifest_rows))
+    samples_by_destination: dict[str, dict[str, list[list[dict[str, str]]]]] = {}
+    for representative in destinations:
+        grouped: dict[str, list[list[dict[str, str]]]] = defaultdict(list)
+        for row in manifest_rows:
+            if row["destination"] != representative:
+                continue
+            with (tables_directory / f"samples_{row['run_id']}.csv").open(newline="", encoding="utf-8") as handle:
+                samples = [sample for sample in csv.DictReader(handle) if sample["destination"] == representative]
+            grouped[row["requested_algorithm"]].append(samples)
+        if grouped:
+            samples_by_destination[representative] = grouped
+    if not samples_by_destination:
+        raise ValueError(f"representative destination not found: {destination}")
     output_directory.mkdir(parents=True, exist_ok=True)
-    plot_path = output_directory / f"comparison_plots_{base_run_id}_{representative.replace(':', '_')}.pdf"
+    suffix = f"_{destination.replace(':', '_')}" if destination is not None else ""
+    plot_path = output_directory / f"comparison_plots_{base_run_id}{suffix}.pdf"
     with PdfPages(plot_path) as pdf:
-        for title, x_field, y_field, x_label, y_label, x_scale, y_scale, style in _SPECS:
-            figure, axis = plt.subplots(figsize=(8.5, 5.5))
-            for algorithm, runs in grouped.items():
-                for index, samples in enumerate(runs):
-                    pairs = [(_number(sample, x_field), _number(sample, y_field)) for sample in samples]
-                    pairs = [(x, y) for x, y in pairs if x is not None and y is not None]
-                    x_values = [x / x_scale for x, _ in pairs]
-                    y_values = [y / y_scale for _, y in pairs]
-                    label = algorithm if index == 0 else None
-                    if style == "line":
-                        axis.plot(x_values, y_values, marker=".", linewidth=1.1, alpha=0.7, label=label)
-                    else:
-                        axis.scatter(x_values, y_values, s=16, alpha=0.55, label=label)
-            axis.set_title(f"{title}\n{representative}, comparison {base_run_id}")
-            axis.set_xlabel(x_label)
-            axis.set_ylabel(y_label)
-            axis.grid(True, alpha=0.3)
-            axis.legend()
-            figure.tight_layout()
-            pdf.savefig(figure)
-            plt.close(figure)
+        for representative, grouped in samples_by_destination.items():
+            colors = _algorithm_colors(list(grouped))
+            for title, x_field, y_field, x_label, y_label, x_scale, y_scale, style in _SPECS:
+                figure, axis = plt.subplots(figsize=(8.5, 5.5))
+                for algorithm, runs in grouped.items():
+                    for index, samples in enumerate(runs):
+                        pairs = [(_number(sample, x_field), _number(sample, y_field)) for sample in samples]
+                        pairs = [(x, y) for x, y in pairs if x is not None and y is not None]
+                        x_values = [x / x_scale for x, _ in pairs]
+                        y_values = [y / y_scale for _, y in pairs]
+                        label = algorithm if index == 0 else None
+                        if style == "line":
+                            axis.plot(x_values, y_values, marker=".", linewidth=1.1, alpha=0.7, color=colors[algorithm], label=label)
+                        else:
+                            axis.scatter(x_values, y_values, s=16, alpha=0.55, color=colors[algorithm], label=label)
+                axis.set_title(f"{title}\n{representative}, comparison {base_run_id}")
+                axis.set_xlabel(x_label)
+                axis.set_ylabel(y_label)
+                axis.grid(True, alpha=0.3)
+                axis.legend(title="Algorithm\n(each trace: one repetition)")
+                figure.tight_layout()
+                pdf.savefig(figure)
+                plt.close(figure)
     return plot_path
 
 
