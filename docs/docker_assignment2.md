@@ -30,14 +30,15 @@ docker build --tag cs422-assignment2 .
 
 ## Run
 
-On Linux or WSL2, mount `outputs` so raw data and plots persist outside the
-container. The `--user` flag prevents root-owned output files.
+On Linux or WSL2, mount `outputsDocker` so Docker-generated raw data and plots
+remain separate from local `outputs`. The `--user` flag prevents root-owned
+output files.
 
 ```bash
-mkdir -p outputs
+mkdir -p outputsDocker
 docker run --rm \
   --user "$(id -u):$(id -g)" \
-  --volume "$PWD/outputs:/app/outputs" \
+  --volume "$PWD/outputsDocker:/app/outputs" \
   cs422-assignment2 \
   --destinations 10 \
   --max-attempts 30 \
@@ -49,11 +50,11 @@ docker run --rm \
   --comparison-run-id q3-20261017
 ```
 
-The mounted `outputs/tables` directory receives the baseline plan, all raw
+The mounted `outputsDocker/tables` directory receives the baseline plan, all raw
 samples, summaries, attempt logs, algorithm-comparison manifest, and a
 `pipeline_environment_<run-id>.json` record containing the host kernel release
 and available congestion-control algorithms. The grouped PDF is written under
-`outputs/plots`.
+`outputsDocker/plots`.
 
 To perform an intentionally partial comparison on a host without BBR, replace
 the algorithm list with `--algorithms CUBIC Reno`; this is not a substitute for

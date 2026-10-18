@@ -1,0 +1,15 @@
+{
+  "recorded_at_utc": "2026-10-18T00:01:00.704823+00:00",
+  "system": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "kernel_release": "6.18.54.1-microsoft-standard-WSL2",
+  "available_congestion_algorithms": [
+    "bbr",
+    "cubic",
+    "reno"
+  ],
+  "requested_congestion_algorithms": [
+    "cubic",
+    "reno",
+    "bbr"
+  ]
+}
