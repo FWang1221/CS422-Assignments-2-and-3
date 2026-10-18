@@ -1,0 +1,11 @@
+run_id,attempt_number,host,port,client,status,failure_reason
+q3-q3-20261017-r01-cubic,1,speedtest.ams1.nl.leaseweb.net,5204,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,2,iperf3.moji.fr,5229,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,3,41.110.39.130,5201,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,4,speedtest.lon1.uk.leaseweb.net,5204,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,5,speedtest1.cwpanama.net,5506,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,6,la.speedtest.clouvider.net,5209,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,7,84.17.57.129,5201,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,8,195.181.162.195,5201,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,9,a209.speedtest.wobcom.de,5201,iperf3-live,completed,
+q3-q3-20261017-r01-cubic,10,96.45.42.156,30007,iperf3-live,completed,

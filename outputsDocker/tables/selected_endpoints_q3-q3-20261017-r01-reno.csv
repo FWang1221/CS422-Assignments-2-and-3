@@ -1,0 +1,9 @@
+selection_order,host,port,capacity,continent,country,site,provider
+1,speedtest.ams1.nl.leaseweb.net,5204,10,Europe,NL,Amsterdam,LeaseWeb
+2,iperf3.moji.fr,5229,100,Europe,FR,Paris,moji
+3,41.110.39.130,5201,10,Africa,DZ,Algiers,DATAPACKET
+4,speedtest1.cwpanama.net,5506,1,Latin America,PA,Colón,CW Panama
+5,la.speedtest.clouvider.net,5209,10,North America,US,Los Angeles,Clouvider
+6,195.181.162.195,5201,2x10,North America,US,Miami,DATAPACKET
+7,a209.speedtest.wobcom.de,5201,2x25,Europe,DE,Berlin,WOBCOM
+8,96.45.42.156,30007,10,Europe,FR,Paris,FortiSASE

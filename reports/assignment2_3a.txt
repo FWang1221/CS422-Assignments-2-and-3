@@ -1,0 +1,9 @@
+- (a) **Compare CUBIC, Reno, and BBR and identify operating regimes.** Repeat the measurements from Questions 1 and 2 with each of CUBIC, Reno, and BBR. Select the algorithm on the data socket before connecting, and record the algorithm actually used. Repeat all visualizations from Question 2(b) for each algorithm: time series of `snd_cwnd` , RTT, loss proxy, and throughput, and scatter plots of congestion window, RTT, and loss signal against goodput. Use the same representative destination for all three algorithms, with clearly labeled curves or separate panels and consistent axis scales to facilitate comparison. Include these plots in your report. Use the same destinations, transfer duration, and sampling interval for all three algorithms, and repeat the tests across multiple runs. Report the number of repetitions and test order. Identify the network conditions under which each algorithm performs better in throughput and RTT, and explain why using your measurements. Relate your observations to congestion window size, rtt, queueing, loss, and the bandwidth-delay product. Discuss variability across runs and the limitations of comparisons over changing public Internet paths. 
+
+
+
+For each IP, we repeat thrice, and we cycle between every chosen algorithm passed in in the order.
+
+BBR seems to win in most cases, where it shoots up to a really high snd_cwnd very quickly and consistently stays there, because its congestion window size is determined by a prediction formula, it's model-based, rather than backing off really quickly like Reno or Cubic, which are loss-based. BBR wants to maximize actual delivery rating, and is also an unfair algorithm when compared to algorithms like Reno or Cubic where it will be very aggressive in taking bandwidth very early.
+
+Internet conditions are always changing, other users generating traffic, routes opening and closing, and other factors make reproducing exact results quite difficult.

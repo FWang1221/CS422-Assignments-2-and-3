@@ -1,0 +1,7 @@
+selection_order,host,port,capacity,continent,country,site,provider
+1,iperf3.moji.fr,5229,100,Europe,FR,Paris,moji
+2,41.110.39.130,5201,10,Africa,DZ,Algiers,DATAPACKET
+3,speedtest.lon1.uk.leaseweb.net,5204,10,Europe,GB,London,LeaseWeb
+4,84.17.57.129,5201,2x10,Asia,HK,Hong Kong,DATAPACKET
+5,195.181.162.195,5201,2x10,North America,US,Miami,DATAPACKET
+6,a209.speedtest.wobcom.de,5201,2x25,Europe,DE,Berlin,WOBCOM
