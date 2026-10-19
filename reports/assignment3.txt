@@ -1,0 +1,13 @@
+Write a kernel module or eBPF program implementing your congestion control algorithm. Select it on the data socket in your Python client from Assignment 2 and record the algorithm actually used. For each test, log congestion window, throughput, RTT, and a loss signal (e.g., 3 DUP ACKs, timeouts, or retransmission events) for 10 seconds. 
+
+Repeat the tests with CUBIC, Reno, and BBR across multiple runs. Use the same destinations, duration, and sampling interval for all four algorithms, and report the number of repetitions and test order. Repeat the time-series and scatter plots from Assignment 2, Question 2(b), for all four algorithms using the same representative destination. Clearly label the algorithms and use consistent axis scales. Include throughput and rtt aggregate statistics and explain the observed differences. 
+
+
+
+For each IP, we repeat thrice, and we cycle between every chosen algorithm passed in in the order.
+
+The algorithm performs decently well, and often scores in the middle of the competing algorithms, Reno, CUBIC, and BBR. Sometimes it performs better, and sometimes it performs worse. When looking at the medians to avoid outliers, we can see that BBR with its high pace and aggressive probing to find out an optimal BDP usually wins.
+
+The custom algorithm doesn't aggressively probe, but rather follows most of Reno's principles, but in addition it tries to optimize for not filling the buffer and with less of a drastic multiplicative decrease for higher stability, and you can see it with the lower median RTTs, and the Pearson correlation between RTT and goodput are usually slightly negative. This slight negative correlation indicates that it does successfully scale its window without artificially inflating latency, which is what the algorithm sets out to do.
+
+Retransmission is quite noisy for measuring bufferbloat, since other independent algorithms competing with you on the line like machines running CUBIC will fill the buffer up regardless of what we want. The slow start and not wanting to inflate RTT kills the competitiveness of the algorithm in comparison to BBR and CUBIC which try to aggressively fill the pipe, but it still succeeds in the design goal of avoiding bufferbloat.
