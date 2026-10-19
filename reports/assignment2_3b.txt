@@ -1,7 +1,7 @@
 - (Assignment2: 3b) **Design a hand-written algorithm.** Using your measurements, design a congestion control algorithm and write pseudocode specifying how it updates the congestion window based on RTT, packet-loss estimates or a loss proxy, and throughput. Explain your design choices. Discuss whether competing flows using your algorithm are expected to share bandwidth fairly and whether their sending rates converge to a stable operating point. State your assumptions and explain any expected limitations.
 
 
-General Overview: A delay-sensitive AIMD controller uses a moving median of the last 7 valid RTT samples and round-level goodput to estimate queue buildup. It can reduce the window before packet loss, while retaining immediate Linux loss recovery as a failsafe. Linux's native pacing machinery schedules transmission rather than a private queue or timer.
+General Overview: A delay-sensitive AIMD controller that uses a moving median of the last 7 valid RTT samples and round-level goodput to estimate queue buildup. It can reduce the window before packet loss, while retaining immediate Linux loss recovery as a failsafe. Linux's native pacing machinery schedules transmission rather than a private queue or timer.
 
 
 Rationale: RTT inflation and a throughput-based queue estimate provide early warning of buffer buildup. A moving median reduces sensitivity to RTT outliers, and round-level decisions avoid reacting repeatedly to feedback from the same flight of packets. Native pacing can reduce bursts but does not guarantee the absence of loss or measure the bottleneck bandwidth directly.
@@ -11,7 +11,7 @@ Fairness and stability hypotheses:
 
 Flows using this algorithm may approach similar sending rates when they share a bottleneck and have comparable propagation RTTs and start times. This is an expectation, not a guarantee of fairness or convergence. Different RTTs, delayed or compressed ACKs, late-arriving flows, and inaccurate base RTT estimates can produce unequal shares or oscillations. Round-based decisions and the gap between the two thresholds reduce sensitivity to individual ACKs but do not prove stability.
 
-Against loss-based TCP CUBIC, this delay-sensitive algorithm may yield bandwidth before CUBIC reduces its window and may receive a much smaller share. Starvation is a risk, not an established result. Fairness and stability claims require competing-flow measurements; separate public-server runs alone cannot establish either.
+Against loss-based TCP CUBIC, this delay-sensitive algorithm may yield bandwidth before CUBIC reduces its window and may receive a much smaller share. Starvation is a risk, not an established result. This algorithm is not fair, though it does not produce large disparities in its unfairness. The algorithm does make it so that flows with larger windows will be more likely to back off, while smaller windows may continue increasing, but while we're not in a phase where congestion windows are changing, fairness between flows is not actively striven for.
 
 
 Control Flow:
@@ -152,15 +152,3 @@ On ACK received (bytes_acked):
 
 On Linux loss-driven ssthresh callback:
     return max(2, floor(cwnd / 2))
-
-Design change from the original pseudocode:
-
-ACKs still update feedback continuously, but delay-based window decisions now occur once per TCP round rather than once per ACK. Goodput is measured over the round, additive growth is one segment per round, and the 0.8 delay backoff can occur at most once per round. Linux loss recovery remains immediate and takes priority over delay control. Startup uses Linux's initial window and slow start with a round-based early delay exit. Missing/stale RTT feedback and application-limited rounds cannot trigger delay decisions. Controller window updates honor explicit bounds. Native Linux pacing replaces the custom median-RTT pacing formula and transmission timer.
-
-Implementation status:
-
-cc/ebpf/cs422_handwrite.bpf.c implements the custom policy using TCP eBPF struct_ops. cc/ebpf/cs422_controller.h contains the shared per-socket round and RTT logic, exercised directly by cc/ebpf/tests/test_controller.c. pkts_acked collects RTT, cong_avoid performs startup and round decisions, ssthresh requests loss backoff, set_state discards partial rounds in CWR/recovery/loss, and undo_cwnd restores the saved pre-loss window within the kernel clamp. Native Linux loss recovery controls temporary recovery windows and retransmissions.
-
-The original cc/ebpf/cs422_scaffold.bpf.c remains a separate Reno-backed baseline with the same registration name. Load only one object at a time and do not report scaffold results as handwritten-algorithm results. src/ebpf_smoke_test.py distinguishes the expected object filenames and tests local load/register/select/transfer/detach, including a finite pacing rate check for the custom object. It is not a public-server experiment or a proof of wire-level pacing.
-
-The original scaffold passed the privileged lifecycle test on kernel 6.18.54.1-microsoft-standard-WSL2. The new controller's privileged verifier/load test and controlled congestion/loss experiments remain separate validation steps. kernel_test_help.txt and cc/ebpf/README.md document commands, tests, event counters and reproduction requirements.

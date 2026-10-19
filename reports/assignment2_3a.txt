@@ -14,4 +14,4 @@ For networks with deep buffers, CUBIC performs better but causes bufferbloat, wi
 
 For networks with low latency and low bandwidth, all 3 algorithms perform similarly and converge nicely.
 
-Internet conditions are always changing, other users generating traffic, routes opening and closing, and other factors make reproducing exact results quite difficult.
+Internet conditions are always changing, other users generating traffic, routes opening and closing, and other factors make reproducing exact results quite difficult. Further, depending on where you're getting your internet, from a public router or a private router, different congestion control algorithms may respond differently to any possible peers. A person living alone using their own wifi will have a different response than a person in a cafe competing against a dozen patrons over the cheap router used for guests, such as if a dozen CUBIC users were bloating the router's buffer, causing rising latency, which tells BBR to back off, but then BBR gets starved by the greedy CUBIC users.
