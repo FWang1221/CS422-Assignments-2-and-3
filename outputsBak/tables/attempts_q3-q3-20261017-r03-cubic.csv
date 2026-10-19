@@ -1,9 +1,0 @@
-run_id,attempt_number,host,port,client,status,failure_reason
-q3-q3-20261017-r03-cubic,1,195.181.162.195,5201,iperf3-live,completed,
-q3-q3-20261017-r03-cubic,2,84.17.57.129,5201,iperf3-live,failed,access_denied
-q3-q3-20261017-r03-cubic,3,41.210.185.162,5201,iperf3-live,completed,
-q3-q3-20261017-r03-cubic,4,204.155.243.172,30007,iperf3-live,completed,
-q3-q3-20261017-r03-cubic,5,96.45.38.22,30007,iperf3-live,failed,premature_termination
-q3-q3-20261017-r03-cubic,6,154.81.51.4,5201,iperf3-live,completed,
-q3-q3-20261017-r03-cubic,7,185.93.3.50,5201,iperf3-live,completed,
-q3-q3-20261017-r03-cubic,8,105.235.237.2,5204,iperf3-live,completed,

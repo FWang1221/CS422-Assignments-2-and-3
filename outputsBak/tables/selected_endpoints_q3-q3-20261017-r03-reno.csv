@@ -1,9 +1,0 @@
-selection_order,host,port,capacity,continent,country,site,provider
-1,195.181.162.195,5201,2x10,North America,US,Miami,DATAPACKET
-2,84.17.57.129,5201,2x10,Asia,HK,Hong Kong,DATAPACKET
-3,41.210.185.162,5201,2x10,Africa,UG,Kampala,DATAPACKET
-4,204.155.243.172,30007,10,North America,CA,Toronto,FortiSASE
-5,96.45.38.22,30007,10,Asia,SG,Singapore,FortiSASE
-6,154.81.51.4,5201,2x10,Oceania,PG,Port Moresby,DATAPACKET
-7,185.93.3.50,5201,2x10,Europe,ES,Madrid,DATAPACKET
-8,105.235.237.2,5204,,Africa,GQ,Bata,Guineanet
