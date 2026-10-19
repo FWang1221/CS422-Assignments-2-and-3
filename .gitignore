@@ -3,3 +3,4 @@ outputs/
 *.o
 vmlinux.h
 ebpf-build/
+__pycache__/
