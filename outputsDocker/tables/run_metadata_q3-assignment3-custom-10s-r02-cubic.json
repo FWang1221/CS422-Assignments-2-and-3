@@ -1,0 +1,37 @@
+{
+  "run_id": "q3-assignment3-custom-10s-r02-cubic",
+  "client": "iperf3-live",
+  "measurement_mode": "live",
+  "network_io": true,
+  "debug": false,
+  "requested_destinations": 10,
+  "run_started_at_utc": "2026-10-18T23:47:04.846783+00:00",
+  "completed_destinations": 9,
+  "shortfall": 1,
+  "duration_s": 10.0,
+  "sample_interval_s": 0.2,
+  "algorithm": "CUBIC",
+  "actual_algorithms": [
+    "cubic"
+  ],
+  "max_attempts": 10,
+  "tcp_info_layout": "Linux struct tcp_info: core through tcpi_bytes_acked (128 bytes); pacing rate at offset 104 and delivery rate at offset 160 when returned by the host kernel",
+  "units": {
+    "timestamp_utc": "ISO 8601 UTC",
+    "elapsed_s": "seconds from data-transfer start",
+    "interval_s": "actual elapsed seconds between samples",
+    "bytes_acked": "bytes",
+    "acknowledged_bytes_delta": "bytes",
+    "goodput_bps": "bits per second",
+    "snd_cwnd_segments": "TCP segments",
+    "snd_cwnd_bytes": "bytes, snd_cwnd_segments multiplied by tcpi_snd_mss",
+    "srtt_us": "microseconds",
+    "rttvar_us": "microseconds",
+    "lost": "current packet-loss estimate reported by tcpi_lost",
+    "lost_change": "signed change in the tcpi_lost estimate between samples; not a count of newly lost packets",
+    "total_retransmits": "cumulative retransmitted packets",
+    "total_retransmits_delta": "retransmitted packets during the actual sample interval",
+    "pacing_rate_bps": "bits per second",
+    "delivery_rate_bps": "bits per second"
+  }
+}

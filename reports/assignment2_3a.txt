@@ -4,6 +4,14 @@
 
 For each IP, we repeat thrice, and we cycle between every chosen algorithm passed in in the order.
 
-BBR seems to win in most cases, where it shoots up to a really high snd_cwnd very quickly and consistently stays there, because its congestion window size is determined by a prediction formula, it's model-based, rather than backing off really quickly like Reno or Cubic, which are loss-based. BBR wants to maximize actual delivery rating, and is also an unfair algorithm when compared to algorithms like Reno or Cubic where it will be very aggressive in taking bandwidth very early.
+BBR seems to win in most cases, where it shoots up to a really high snd_cwnd very quickly by probing the network to estimate the bottleneck bandwidth and minimum RTT, multiplying to find a Bandwidth-Delay Product. It then consistently stays there, trying to keep exactly our BDP amounts of data in flight, because its congestion window size is determined by a prediction formula, it's model-based, rather than backing off really quickly like Reno or CUBIC, which are loss-based, trying to shoot past this BDP, filling the router buffer, which causes queueing delay and RTT inflation. BBR wants to maximize actual delivery rating, and is also an unfair algorithm when compared to algorithms like Reno or CUBIC where it will be very aggressive in taking bandwidth very early. Reno is AIMD, and it only adds a small flat amount of congestion window per RTT, and this is super slow for networks that have high bandwidth that can support a larger congestion window that Reno isn't taking advantage of, as well as super slow for networks that have high latency, where the additive increase isn't happening very frequently. For CUBIC, it still scales up quickly since it uses a polynomial function depending on time since last packet loss, but still falls victim to the pitfalls of loss-based algorithms, where pushing past the BBR's BDP calculations results in bufferbloat and such discuss above.
+
+For operating regimes, in our cases, we can see the following:
+
+For erratic networks with high random packet loss, BBR wins easily. Reno and CUBIC are loss-based where any loss is categorized as congestion, forcing a reduction in window size. BBR ignores packet loss as a congestion signal, allowing for high goodput even with these losses.
+
+For networks with deep buffers, CUBIC performs better but causes bufferbloat, with large RTT spikes. BBR still wins, since the goal is to keep the buffer empty.
+
+For networks with low latency and low bandwidth, all 3 algorithms perform similarly and converge nicely.
 
 Internet conditions are always changing, other users generating traffic, routes opening and closing, and other factors make reproducing exact results quite difficult.

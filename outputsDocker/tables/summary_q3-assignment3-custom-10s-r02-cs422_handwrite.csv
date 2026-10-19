@@ -1,0 +1,9 @@
+run_id,destination,port,algorithm,measurement_mode,sample_count,min_goodput_bps,median_goodput_bps,mean_goodput_bps,p95_goodput_bps,status
+q3-assignment3-custom-10s-r02-cs422_handwrite,iperf3.moji.fr,5229,cs422_handwrite,live,50,1265677.148208215,2622631.8083063243,3975035.6772225783,11799832.948716346,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,speedtest1.cwpanama.net,5506,cs422_handwrite,live,50,0.0,3930518.1472104033,5093650.184240854,14435445.953105139,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,la.speedtest.clouvider.net,5209,cs422_handwrite,live,50,2584930.4789199405,7097180.859327747,7930325.408887981,17098384.83040993,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,195.181.162.195,5201,cs422_handwrite,live,50,2616957.1469286224,9187528.371107632,10082179.165551918,19668432.680184897,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,a209.speedtest.wobcom.de,5201,cs422_handwrite,live,50,0.0,0.0,1064249.0963024085,1314943.8697225186,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,96.45.42.156,30007,cs422_handwrite,live,50,1306528.0978800398,3928708.1190887755,4839976.879819682,11795655.221121565,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,speedtestfl.telecom.mu,5208,cs422_handwrite,live,50,0.0,1312001.0732327192,1903526.0723838557,3937252.4624231844,completed
+q3-assignment3-custom-10s-r02-cs422_handwrite,156.146.40.65,5201,cs422_handwrite,live,50,1274134.457500443,2622227.1306558503,3805763.61290595,9177213.95513578,completed

@@ -1,0 +1,11 @@
+selection_order,host,port,capacity,continent,country,site,provider
+1,iperf3.moji.fr,5229,100,Europe,FR,Paris,moji
+2,41.110.39.130,5201,10,Africa,DZ,Algiers,DATAPACKET
+3,speedtest1.cwpanama.net,5506,1,Latin America,PA,Colón,CW Panama
+4,la.speedtest.clouvider.net,5209,10,North America,US,Los Angeles,Clouvider
+5,84.17.57.129,5201,2x10,Asia,HK,Hong Kong,DATAPACKET
+6,195.181.162.195,5201,2x10,North America,US,Miami,DATAPACKET
+7,a209.speedtest.wobcom.de,5201,2x25,Europe,DE,Berlin,WOBCOM
+8,96.45.42.156,30007,10,Europe,FR,Paris,FortiSASE
+9,speedtestfl.telecom.mu,5208,,Africa,MU,Floreal,Mauritius Telecom
+10,156.146.40.65,5201,2x10,Europe,SK,Bratislava,DATAPACKET

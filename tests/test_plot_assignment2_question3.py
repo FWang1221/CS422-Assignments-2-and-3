@@ -2,8 +2,10 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.plot_assignment2_question3 import _algorithm_colors, generate_comparison_plots
+from src.plot_statistics import draw_statistics
 
 
 class Assignment2Question3PlotTests(unittest.TestCase):
@@ -38,11 +40,54 @@ class Assignment2Question3PlotTests(unittest.TestCase):
                 writer.writeheader()
                 writer.writerows(manifest_rows)
 
-            plot_path = generate_comparison_plots("comparison-test", tables_directory, output_directory)
+            with patch("src.plot_assignment2_question3.draw_statistics", wraps=draw_statistics) as draw:
+                plot_path = generate_comparison_plots("comparison-test", tables_directory, output_directory)
+
+            self.assertEqual(draw.call_count, 14)
+            self.assertEqual(draw.call_args_list[0].args[1], [
+                ("CUBIC", [1.0], [100000 / 1024]),
+                ("Reno", [1.0], [100000 / 1024]),
+            ])
+            self.assertFalse(draw.call_args_list[0].args[4])
+            self.assertTrue(draw.call_args_list[4].args[4])
 
             self.assertEqual(plot_path, output_directory / "comparison_plots_comparison-test.pdf")
             self.assertTrue(plot_path.exists())
             self.assertGreater(plot_path.stat().st_size, 0)
+
+    def test_statistics_pool_repetitions_per_algorithm_without_joining_traces(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = []
+            for algorithm, repetitions in (("CUBIC", ([1, 2], [9])), ("BBR", ([4, 5, 6],))):
+                for index, values in enumerate(repetitions):
+                    run_id = f"{algorithm}-{index}"
+                    manifest.append({
+                        "run_id": run_id, "requested_algorithm": algorithm,
+                        "destination": "one.example", "status": "completed",
+                    })
+                    with (root / f"samples_{run_id}.csv").open("w", newline="", encoding="utf-8") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=[
+                            "destination", "elapsed_s", "snd_cwnd_bytes", "srtt_us",
+                            "total_retransmits_delta", "goodput_bps",
+                        ])
+                        writer.writeheader()
+                        for value in values:
+                            writer.writerow({
+                                "destination": "one.example", "elapsed_s": str(value),
+                                "snd_cwnd_bytes": str(value * 1024), "srtt_us": str(value * 1000),
+                                "total_retransmits_delta": "0", "goodput_bps": str(value * 1_000_000),
+                            })
+            with (root / "comparison_manifest_test.csv").open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=manifest[0].keys())
+                writer.writeheader()
+                writer.writerows(manifest)
+            with patch("src.plot_assignment2_question3.draw_statistics", wraps=draw_statistics) as draw:
+                generate_comparison_plots("test", root, root)
+            self.assertEqual(draw.call_args_list[4].args[1], [
+                ("CUBIC", [1, 2, 9], [1, 2, 9]),
+                ("BBR", [4, 5, 6], [4, 5, 6]),
+            ])
 
 
 if __name__ == "__main__":

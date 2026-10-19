@@ -35,7 +35,7 @@ check-median-codegen: $(BUILD_DIR)/cs422_handwrite.bpf.o
 $(BUILD_DIR):
 	mkdir -p "$@"
 
-$(BUILD_DIR)/vmlinux.h: $(VMLINUX_BTF) | $(BUILD_DIR)
+$(BUILD_DIR)/vmlinux.h: | $(VMLINUX_BTF) $(BUILD_DIR)
 	$(BPFTOOL) btf dump file "$(VMLINUX_BTF)" format c > "$@.tmp"
 	mv "$@.tmp" "$@"
 

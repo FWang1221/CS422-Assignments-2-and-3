@@ -1,2 +1,5 @@
 iperf3_wiki/
 outputs/
+*.o
+vmlinux.h
+ebpf-build/

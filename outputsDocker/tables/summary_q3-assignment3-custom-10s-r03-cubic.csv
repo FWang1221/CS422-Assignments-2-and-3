@@ -1,0 +1,10 @@
+run_id,destination,port,algorithm,measurement_mode,sample_count,min_goodput_bps,median_goodput_bps,mean_goodput_bps,p95_goodput_bps,status
+q3-assignment3-custom-10s-r03-cubic,iperf3.moji.fr,5229,cubic,live,50,1258658.8890745852,2666548.4118701443,4326782.198978623,9212081.658582635,completed
+q3-assignment3-custom-10s-r03-cubic,speedtest1.cwpanama.net,5506,cubic,live,50,0.0,2625657.754719476,6632843.084117674,18361687.109379113,completed
+q3-assignment3-custom-10s-r03-cubic,la.speedtest.clouvider.net,5209,cubic,live,50,1328290.7938262643,7226292.952265406,7303923.685380179,10500656.658810576,completed
+q3-assignment3-custom-10s-r03-cubic,84.17.57.129,5201,cubic,live,50,0.0,1310656.3561441735,2124455.749160721,5218407.241383061,completed
+q3-assignment3-custom-10s-r03-cubic,195.181.162.195,5201,cubic,live,50,2625228.2940307893,9862284.210943792,10723337.5000822,22300584.81278911,completed
+q3-assignment3-custom-10s-r03-cubic,a209.speedtest.wobcom.de,5201,cubic,live,50,0.0,2557.2531137549263,1181045.753562971,2608199.65771028,completed
+q3-assignment3-custom-10s-r03-cubic,96.45.42.156,30007,cubic,live,50,0.0,3883825.5990045965,4836821.157279413,11795370.073860986,completed
+q3-assignment3-custom-10s-r03-cubic,speedtestfl.telecom.mu,5208,cubic,live,50,0.0,1305840.0478982888,1711856.8615451236,3931223.287732173,completed
+q3-assignment3-custom-10s-r03-cubic,156.146.40.65,5201,cubic,live,50,40988.70377426386,2639773.9613149157,3880306.068783045,9212526.874516781,completed

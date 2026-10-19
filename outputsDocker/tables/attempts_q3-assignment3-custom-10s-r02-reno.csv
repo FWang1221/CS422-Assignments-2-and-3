@@ -1,0 +1,11 @@
+run_id,attempt_number,host,port,client,status,failure_reason
+q3-assignment3-custom-10s-r02-reno,1,iperf3.moji.fr,5229,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,2,41.110.39.130,5201,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,3,speedtest1.cwpanama.net,5506,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,4,la.speedtest.clouvider.net,5209,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,5,84.17.57.129,5201,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,6,195.181.162.195,5201,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,7,a209.speedtest.wobcom.de,5201,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,8,96.45.42.156,30007,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,9,speedtestfl.telecom.mu,5208,iperf3-live,completed,
+q3-assignment3-custom-10s-r02-reno,10,156.146.40.65,5201,iperf3-live,completed,

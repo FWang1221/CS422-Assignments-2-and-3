@@ -32,5 +32,21 @@ build, validation, load and detach commands.
 comparison views for one representative destination. Operating-regime
 interpretation and report discussion remain TODOs.
 
+Both plot generators include per-algorithm mean, median, and sample count for
+goodput, congestion window, smoothed RTT, and the retransmission proxy, in the
+displayed axis units. Scatter tables summarize both plotted metrics and report
+Pearson's r for their paired observations; elapsed-time plots intentionally do
+not report correlation. Correlation is unavailable for fewer than three pairs
+or a constant metric. Blank and non-finite measurements are excluded pairwise;
+malformed numeric values still raise an error.
+
+Comparison statistics are computed separately for each destination and algorithm,
+pooling valid plotted samples across repetitions (sample-weighted, not an
+equal-weight average of run means). Means and medians describe telemetry samples,
+not time-weighted throughput or independent experimental replicates. Pearson's r
+is a descriptive linear association, not a causal claim or significance test:
+time dependence and differences between repetitions can affect it. The same
+comparison generator supports the custom algorithm for Assignment 3 Option 1.
+
 The final reproducibility work still needs a unified entry-point script,
 Dockerfile based on `ubuntu:24.04`, host-kernel recording, and report assembly.

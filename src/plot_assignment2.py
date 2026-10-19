@@ -20,10 +20,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-
-def _number(row: dict[str, str], field: str) -> float | None:
-    value = row.get(field, "").strip()
-    return float(value) if value else None
+from src.plot_statistics import draw_statistics, number as _number
 
 
 def _load_samples(samples_path: Path) -> dict[str, list[dict[str, str]]]:
@@ -78,19 +75,30 @@ proxy, and acknowledged goodput plus the three required goodput scatter plots.
     )
     destination_count = len(samples_by_destination)
     for title, x_field, y_field, x_label, y_label, x_scale, y_scale, style in plot_specs:
-        figure, axes = plt.subplots(destination_count, 1, figsize=(8.5, 3.4 * destination_count), squeeze=False)
+        figure, axes = plt.subplots(
+            2 * destination_count, 1, figsize=(10, 5.5 * destination_count),
+            squeeze=False, gridspec_kw={"height_ratios": [3, 1.3] * destination_count},
+        )
         figure.suptitle(f"{title}\nRun {run_id}")
-        for axis, (destination, rows) in zip(axes[:, 0], samples_by_destination.items()):
-            x_values, y_values = _pairs(rows, x_field, y_field, x_scale, y_scale)
-            if style == "line":
-                axis.plot(x_values, y_values, marker=".", linewidth=1.2)
-            else:
-                axis.scatter(x_values, y_values, s=18, alpha=0.8)
-            algorithm = rows[0].get("actual_algorithm", "unknown")
-            axis.set_title(f"{destination} ({algorithm})", fontsize=10)
+        for index, (destination, rows) in enumerate(samples_by_destination.items()):
+            axis = axes[2 * index, 0]
+            grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+            for row in rows:
+                grouped[row.get("actual_algorithm", "").strip() or "unknown"].append(row)
+            series = []
+            for algorithm, samples in grouped.items():
+                x_values, y_values = _pairs(samples, x_field, y_field, x_scale, y_scale)
+                series.append((algorithm, x_values, y_values))
+                if style == "line":
+                    axis.plot(x_values, y_values, marker=".", linewidth=1.2, label=algorithm)
+                else:
+                    axis.scatter(x_values, y_values, s=18, alpha=0.8, label=algorithm)
+            axis.set_title(destination, fontsize=10)
             axis.set_xlabel(x_label)
             axis.set_ylabel(y_label)
             axis.grid(True, alpha=0.3)
+            axis.legend(title="Algorithm")
+            draw_statistics(axes[2 * index + 1, 0], series, x_label, y_label, style == "scatter")
         figure.tight_layout()
         pdf.savefig(figure)
         plt.close(figure)

@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from src.plot_statistics import draw_statistics, number as _number
 
 _SPECS = (
     ("Congestion window over time", "elapsed_s", "snd_cwnd_bytes", "Elapsed time (s)", "Congestion window (KiB)", 1, 1024, "line"),
@@ -24,11 +25,6 @@ _SPECS = (
     ("RTT vs goodput", "srtt_us", "goodput_bps", "Smoothed RTT (ms)", "Goodput (Mbps)", 1000, 1_000_000, "scatter"),
     ("Retransmission proxy vs goodput", "total_retransmits_delta", "goodput_bps", "Retransmissions (packets)", "Goodput (Mbps)", 1, 1_000_000, "scatter"),
 )
-
-
-def _number(row: dict[str, str], field: str) -> float | None:
-    value = row.get(field, "").strip()
-    return float(value) if value else None
 
 
 def _algorithm_colors(algorithms: list[str]) -> dict[str, str]:
@@ -72,23 +68,35 @@ def generate_comparison_plots(base_run_id: str, tables_directory: Path, output_d
         for representative, grouped in samples_by_destination.items():
             colors = _algorithm_colors(list(grouped))
             for title, x_field, y_field, x_label, y_label, x_scale, y_scale, style in _SPECS:
-                figure, axis = plt.subplots(figsize=(8.5, 5.5))
+                scatter = style == "scatter"
+                table_height = 0.6 + 0.28 * len(grouped) * (2 if scatter else 1)
+                figure, (axis, statistics_axis) = plt.subplots(
+                    2, 1, figsize=(10, 5.5 + table_height),
+                    gridspec_kw={"height_ratios": [4, table_height]},
+                )
+                series = []
                 for algorithm, runs in grouped.items():
+                    pooled_x: list[float] = []
+                    pooled_y: list[float] = []
                     for index, samples in enumerate(runs):
                         pairs = [(_number(sample, x_field), _number(sample, y_field)) for sample in samples]
                         pairs = [(x, y) for x, y in pairs if x is not None and y is not None]
                         x_values = [x / x_scale for x, _ in pairs]
                         y_values = [y / y_scale for _, y in pairs]
+                        pooled_x.extend(x_values)
+                        pooled_y.extend(y_values)
                         label = algorithm if index == 0 else None
                         if style == "line":
                             axis.plot(x_values, y_values, marker=".", linewidth=1.1, alpha=0.7, color=colors[algorithm], label=label)
                         else:
                             axis.scatter(x_values, y_values, s=16, alpha=0.55, color=colors[algorithm], label=label)
+                    series.append((algorithm, pooled_x, pooled_y))
                 axis.set_title(f"{title}\n{representative}, comparison {base_run_id}")
                 axis.set_xlabel(x_label)
                 axis.set_ylabel(y_label)
                 axis.grid(True, alpha=0.3)
                 axis.legend(title="Algorithm\n(each trace: one repetition)")
+                draw_statistics(statistics_axis, series, x_label, y_label, scatter)
                 figure.tight_layout()
                 pdf.savefig(figure)
                 plt.close(figure)
